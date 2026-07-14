@@ -15,6 +15,7 @@ import {
   AiSettingsSchema,
   DEFAULT_AI_SETTINGS,
   MicroSummarySchema,
+  REPORT_STALE_AFTER_MS,
 } from "@sleeper-caffeine/ipc-contract";
 
 type LeagueRow = {
@@ -132,8 +133,17 @@ export class LocalStore {
           raw,
         );
       this.database
-        .prepare("UPDATE ai_reports SET invalidated = 1 WHERE league_id = ?")
-        .run(dashboard.league.leagueId);
+        .prepare(
+          `UPDATE ai_reports
+           SET invalidated = CASE WHEN generated_at < ? THEN 1 ELSE 0 END
+           WHERE league_id = ?`,
+        )
+        .run(
+          new Date(
+            Date.parse(dashboard.capturedAt) - REPORT_STALE_AFTER_MS,
+          ).toISOString(),
+          dashboard.league.leagueId,
+        );
       this.database.exec("COMMIT");
     } catch (error) {
       this.database.exec("ROLLBACK");

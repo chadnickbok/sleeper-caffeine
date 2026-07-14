@@ -1,6 +1,18 @@
 import { defineConfig } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
+import type { Plugin } from "vite";
+
+const developmentCspPlugin: Plugin = {
+  name: "sleeper-caffeine-development-csp",
+  apply: "serve",
+  transformIndexHtml(html) {
+    return html.replace(
+      "style-src 'self' https://fonts.googleapis.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    );
+  },
+};
 
 export default defineConfig({
   main: {
@@ -29,7 +41,7 @@ export default defineConfig({
   },
   renderer: {
     root: resolve("src/renderer"),
-    plugins: [react()],
+    plugins: [react(), developmentCspPlugin],
     build: { rollupOptions: { input: resolve("src/renderer/index.html") } },
   },
 });

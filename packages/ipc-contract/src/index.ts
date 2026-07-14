@@ -169,6 +169,8 @@ export const ReportPayloadSchema = z.object({
 });
 export type ReportPayload = z.infer<typeof ReportPayloadSchema>;
 
+export const REPORT_STALE_AFTER_MS = 12 * 60 * 60 * 1000;
+
 export const MicroSummaryOutputSchema = z.object({
   headline: z.string().min(1).max(100),
   summary: z.string().min(1).max(220),

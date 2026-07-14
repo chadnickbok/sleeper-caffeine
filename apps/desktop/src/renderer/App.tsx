@@ -18,6 +18,7 @@ import type {
   ReportKind,
   RuntimeEvent,
 } from "@sleeper-caffeine/ipc-contract";
+import { REPORT_STALE_AFTER_MS } from "@sleeper-caffeine/ipc-contract";
 import sleeperCaffeineBadge from "./assets/sleeper-caffeine-badge.svg";
 import sleeperCaffeineMascot from "./assets/sleeper-caffeine-mascot.svg";
 
@@ -762,9 +763,10 @@ function DraftBoard({ dashboard }: { dashboard: Dashboard }) {
 }
 
 function ReportView({ report }: { report: AiReport }) {
+  const stale = isStaleReport(report);
   return (
     <div className="report-view">
-      {report.invalidated && (
+      {stale && (
         <div className="stale-banner">
           <Icon name="refresh" />
           <div>
@@ -1697,8 +1699,9 @@ function ReportTeaser({
     "Not generated yet";
   const summary =
     report?.microSummary?.summary ?? report?.payload.summary ?? fallback;
+  const stale = report ? isStaleReport(report) : false;
   const freshness = report
-    ? `${report.invalidated ? "Stale · " : ""}Updated ${relativeTime(report.generatedAt)}`
+    ? `${stale ? "Stale · " : ""}Updated ${relativeTime(report.generatedAt)}`
     : "Not generated";
   const runGeneration = () => {
     if (status.state === "signed_out") onLogin();
@@ -1728,9 +1731,7 @@ function ReportTeaser({
           <div className="teaser-meta">
             <span>{title}</span>
             <i />
-            <small className={report?.invalidated ? "stale" : undefined}>
-              {freshness}
-            </small>
+            <small className={stale ? "stale" : undefined}>{freshness}</small>
           </div>
           <h3>{headline}</h3>
           <p>{summary}</p>
@@ -2137,4 +2138,12 @@ function relativeTime(value: string) {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
+}
+function isStaleReport(report: AiReport) {
+  const generatedAt = Date.parse(report.generatedAt);
+  return (
+    report.invalidated &&
+    Number.isFinite(generatedAt) &&
+    Date.now() - generatedAt > REPORT_STALE_AFTER_MS
+  );
 }

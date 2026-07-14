@@ -121,18 +121,24 @@ describe("report generation", () => {
     try {
       const report = await runtime.generateReport("team_analysis");
       expect(runTurn).toHaveBeenCalledTimes(2);
-      expect(runTurn.mock.calls[1]?.[0]).toMatchObject({
+      const microSummaryRequest = runTurn.mock.calls[1]?.[0] as {
+        threadId: string;
+        model: string;
+        effort: string;
+        prompt: string;
+      };
+      expect(microSummaryRequest).toMatchObject({
         threadId: "report-thread",
         model: "gpt-5.6-terra",
         effort: "low",
       });
-      expect(runTurn.mock.calls[1]?.[0].prompt).toContain(
+      expect(microSummaryRequest.prompt).toContain(
         "Do not call tools, use web search, introduce new facts",
       );
-      expect(runTurn.mock.calls[1]?.[0].prompt).toContain(
+      expect(microSummaryRequest.prompt).toContain(
         "hard limit of 100 characters",
       );
-      expect(runTurn.mock.calls[1]?.[0].prompt).toContain("first three lines");
+      expect(microSummaryRequest.prompt).toContain("first three lines");
       expect(report.microSummary).toEqual({
         headline: "Elite backs anchor a fragile contender",
         summary:
