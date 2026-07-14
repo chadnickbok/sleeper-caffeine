@@ -20,6 +20,8 @@ const api: SleeperCaffeineApi = {
   loginCodex: () => ipcRenderer.invoke(IPC_CHANNELS.codexLogin),
   logoutCodex: () => ipcRenderer.invoke(IPC_CHANNELS.codexLogout),
   clearLocalData: () => ipcRenderer.invoke(IPC_CHANNELS.clearLocalData),
+  updateAiSettings: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateAiSettings, input),
   openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.openExternal, url),
   onRuntimeEvent: (listener) => {
     const handler = (

@@ -13,6 +13,12 @@ export const IPC_CHANNELS = {
   saveLeague: "league:save",
   sendChat: "ai:send-chat",
   setActiveLeague: "league:set-active",
+  updateAiSettings: "settings:update-ai",
+} as const;
+
+export const DEFAULT_AI_SETTINGS = {
+  model: "gpt-5.6-terra",
+  effort: "low",
 } as const;
 
 export const ReportKindSchema = z.enum([
@@ -92,6 +98,22 @@ export const DraftViewSchema = z
   .nullable();
 export type DraftView = z.infer<typeof DraftViewSchema>;
 
+export const NextMatchupSchema = z
+  .object({
+    week: z.number().int(),
+    matchupId: z.number().int(),
+    myPoints: z.number().nullable(),
+    opponent: z.object({
+      rosterId: z.number().int(),
+      teamName: z.string(),
+      avatar: z.string().nullable(),
+      record: z.string(),
+      points: z.number().nullable(),
+    }),
+  })
+  .nullable();
+export type NextMatchup = z.infer<typeof NextMatchupSchema>;
+
 export const DashboardSchema = z.object({
   league: SavedLeagueSchema,
   capturedAt: z.string(),
@@ -112,6 +134,7 @@ export const DashboardSchema = z.object({
   pickInventory: z.unknown(),
   warnings: z.array(z.object({ code: z.string(), message: z.string() })),
   draft: DraftViewSchema,
+  nextMatchup: NextMatchupSchema.optional(),
 });
 export type Dashboard = z.infer<typeof DashboardSchema>;
 
@@ -157,6 +180,27 @@ export const AiReportSchema = z.object({
 });
 export type AiReport = z.infer<typeof AiReportSchema>;
 
+export const AiSettingsSchema = z.object({
+  model: z.string().min(1).max(100),
+  effort: z.string().min(1).max(32),
+});
+export type AiSettings = z.infer<typeof AiSettingsSchema>;
+
+export const CodexModelSchema = z.object({
+  model: z.string(),
+  displayName: z.string(),
+  description: z.string(),
+  isDefault: z.boolean(),
+  defaultReasoningEffort: z.string(),
+  supportedReasoningEfforts: z.array(
+    z.object({
+      effort: z.string(),
+      description: z.string(),
+    }),
+  ),
+});
+export type CodexModel = z.infer<typeof CodexModelSchema>;
+
 export const CodexStatusSchema = z.object({
   state: z.enum([
     "unavailable",
@@ -172,6 +216,7 @@ export const CodexStatusSchema = z.object({
   email: z.string().nullable(),
   planType: z.string().nullable(),
   errorMessage: z.string().nullable(),
+  availableModels: z.array(CodexModelSchema),
 });
 export type CodexStatus = z.infer<typeof CodexStatusSchema>;
 
@@ -201,6 +246,7 @@ export const BootstrapSchema = z.object({
   chatMessages: z.array(ChatMessageSchema),
   codex: CodexStatusSchema,
   mcp: McpStatusSchema,
+  aiSettings: AiSettingsSchema,
 });
 export type Bootstrap = z.infer<typeof BootstrapSchema>;
 
@@ -227,6 +273,7 @@ export type SleeperCaffeineApi = {
   loginCodex(): Promise<void>;
   logoutCodex(): Promise<void>;
   clearLocalData(): Promise<Bootstrap>;
+  updateAiSettings(input: AiSettings): Promise<Bootstrap>;
   openExternal(url: string): Promise<void>;
   onRuntimeEvent(listener: (event: RuntimeEvent) => void): () => void;
 };

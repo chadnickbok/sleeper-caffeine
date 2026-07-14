@@ -7,9 +7,11 @@ import {
 } from "react";
 import type {
   AiReport,
+  AiSettings,
   Bootstrap,
   ChatMessage,
   CodexStatus,
+  CodexModel,
   Dashboard,
   LeaguePreview,
   PlayerView,
@@ -17,6 +19,7 @@ import type {
   RuntimeEvent,
 } from "@sleeper-caffeine/ipc-contract";
 import sleeperCaffeineBadge from "./assets/sleeper-caffeine-badge.svg";
+import sleeperCaffeineMascot from "./assets/sleeper-caffeine-mascot.svg";
 
 type Page =
   | "home"
@@ -38,6 +41,63 @@ const NAV: Array<{ page: Page; label: string; icon: string; badge?: string }> =
     { page: "waivers", label: "Waiver wire", icon: "spark", badge: "W1" },
     { page: "lineup", label: "Start / sit", icon: "bolt", badge: "W1" },
   ];
+
+const FALLBACK_CODEX_MODELS: CodexModel[] = [
+  {
+    model: "gpt-5.6-terra",
+    displayName: "GPT-5.6 Terra",
+    description: "Balanced everyday analysis with strong tool use.",
+    isDefault: false,
+    defaultReasoningEffort: "medium",
+    supportedReasoningEfforts: [
+      { effort: "low", description: "Fast responses with lighter reasoning" },
+      {
+        effort: "medium",
+        description: "Balances speed and reasoning depth for everyday tasks",
+      },
+      {
+        effort: "high",
+        description: "Greater reasoning depth for complex decisions",
+      },
+    ],
+  },
+  {
+    model: "gpt-5.6-sol",
+    displayName: "GPT-5.6 Sol",
+    description: "Deeper analysis and polish for difficult questions.",
+    isDefault: true,
+    defaultReasoningEffort: "low",
+    supportedReasoningEfforts: [
+      { effort: "low", description: "Fast responses with lighter reasoning" },
+      {
+        effort: "medium",
+        description: "Balances speed and reasoning depth for everyday tasks",
+      },
+      {
+        effort: "high",
+        description: "Greater reasoning depth for complex decisions",
+      },
+    ],
+  },
+  {
+    model: "gpt-5.6-luna",
+    displayName: "GPT-5.6 Luna",
+    description: "Fast, efficient responses for clear and repeatable tasks.",
+    isDefault: false,
+    defaultReasoningEffort: "medium",
+    supportedReasoningEfforts: [
+      { effort: "low", description: "Fast responses with lighter reasoning" },
+      {
+        effort: "medium",
+        description: "Balances speed and reasoning depth for everyday tasks",
+      },
+      {
+        effort: "high",
+        description: "Greater reasoning depth for complex decisions",
+      },
+    ],
+  },
+];
 
 export function App() {
   const [data, setData] = useState<Bootstrap | null>(null);
@@ -110,8 +170,8 @@ export function App() {
         <div className="traffic-space" />
         <div className="brand">
           <img
-            className="brand-mark"
-            src={sleeperCaffeineBadge}
+            className="brand-mascot"
+            src={sleeperCaffeineMascot}
             alt=""
             aria-hidden="true"
           />
@@ -204,6 +264,11 @@ export function App() {
               onLogout={() =>
                 void act("logout", () => window.sleeperCaffeine.logoutCodex())
               }
+              onAiSettings={(settings) =>
+                void act("ai-settings", () =>
+                  window.sleeperCaffeine.updateAiSettings(settings),
+                )
+              }
             />
           )}
         </div>
@@ -254,6 +319,7 @@ function PageContent(props: {
   onLogin(): void;
   onClear(): void;
   onLogout(): void;
+  onAiSettings(settings: AiSettings): void;
 }) {
   if (props.page === "home")
     return (
@@ -308,6 +374,7 @@ function PageContent(props: {
       onClear={props.onClear}
       onLogin={props.onLogin}
       onLogout={props.onLogout}
+      onAiSettings={props.onAiSettings}
       busy={props.busy}
     />
   );
@@ -349,6 +416,7 @@ function Home({
     ...dashboard.taxi,
   ];
   const injuries = roster.filter((player) => player.injuryStatus).length;
+  const recordLabel = `${record.wins}-${record.losses}${record.ties ? `-${record.ties}` : ""}`;
   return (
     <div className="page home-page">
       <section className="hero-card">
@@ -357,18 +425,14 @@ function Home({
           <span className="eyebrow">
             {dashboard.league.season} campaign · {dashboard.scoringLabel}
           </span>
-          <h1>
-            Good morning, <em>{dashboard.league.teamName}</em>.
-          </h1>
+          <h1>{dashboard.league.teamName}</h1>
           <p>
-            Your front office is synced. Reports stay put until you regenerate
-            them—refreshing Sleeper never spends an AI turn.
+            {dashboard.leagueStatus === "pre_draft"
+              ? "Set the foundation now. Your Sleeper roster, draft capital, and health flags are synced."
+              : "Your campaign at a glance, synced directly from Sleeper."}
           </p>
           <div className="hero-stats">
-            <Metric
-              label="Record"
-              value={`${record.wins}-${record.losses}${record.ties ? `-${record.ties}` : ""}`}
-            />
+            <Metric label="Record" value={recordLabel} />
             <Metric label="Points for" value={record.pointsFor.toFixed(1)} />
             <Metric label="Rostered" value={String(roster.length)} />
             <Metric
@@ -378,9 +442,7 @@ function Home({
             />
           </div>
         </div>
-        <div className="hero-art">
-          <CoffeeBall />
-        </div>
+        <MatchupPreview dashboard={dashboard} record={recordLabel} />
       </section>
 
       <section className="section-block">
@@ -890,15 +952,37 @@ function SettingsPage({
   onClear,
   onLogin,
   onLogout,
+  onAiSettings,
   busy,
 }: {
   data: Bootstrap;
   onClear(): void;
   onLogin(): void;
   onLogout(): void;
+  onAiSettings(settings: AiSettings): void;
   busy: string | null;
 }) {
   const [danger, setDanger] = useState(false);
+  const availableModels = data.codex.availableModels.length
+    ? data.codex.availableModels
+    : FALLBACK_CODEX_MODELS;
+  const selectedModel =
+    availableModels.find((model) => model.model === data.aiSettings.model) ??
+    availableModels[0];
+  const reasoningOptions = (
+    selectedModel?.supportedReasoningEfforts ?? [
+      { effort: "low", description: "Fast responses with lighter reasoning" },
+      {
+        effort: "medium",
+        description: "Balances speed and reasoning depth",
+      },
+      { effort: "high", description: "Greater depth for complex analysis" },
+    ]
+  ).filter((option) => ["low", "medium", "high"].includes(option.effort));
+  const selectedEffort =
+    reasoningOptions.find(
+      (effort) => effort.effort === data.aiSettings.effort,
+    ) ?? reasoningOptions[0];
   return (
     <div className="page settings-page">
       <PageHeading
@@ -912,6 +996,66 @@ function SettingsPage({
           title="Installed Codex"
           detail={data.codex.version ?? "Not detected"}
           status={data.codex.state}
+        />
+        <SettingRow
+          title="Analyst model"
+          detail={
+            selectedModel?.description ??
+            "Choose which Codex model handles fantasy analysis."
+          }
+          status="active"
+          action={
+            <select
+              className="settings-select"
+              value={data.aiSettings.model}
+              disabled={busy === "ai-settings"}
+              onChange={(event) => {
+                const model = availableModels.find(
+                  (candidate) => candidate.model === event.target.value,
+                );
+                if (!model) return;
+                const effort = model.supportedReasoningEfforts.some(
+                  (candidate) => candidate.effort === data.aiSettings.effort,
+                )
+                  ? data.aiSettings.effort
+                  : model.defaultReasoningEffort;
+                onAiSettings({ model: model.model, effort });
+              }}
+            >
+              {availableModels.map((model) => (
+                <option key={model.model} value={model.model}>
+                  {model.displayName}
+                </option>
+              ))}
+            </select>
+          }
+        />
+        <SettingRow
+          title="Reasoning effort"
+          detail={
+            selectedEffort?.description ??
+            "Higher effort improves depth but takes longer."
+          }
+          status="active"
+          action={
+            <select
+              className="settings-select effort"
+              value={data.aiSettings.effort}
+              disabled={busy === "ai-settings"}
+              onChange={(event) =>
+                onAiSettings({
+                  model: data.aiSettings.model,
+                  effort: event.target.value,
+                })
+              }
+            >
+              {reasoningOptions.map((effort) => (
+                <option key={effort.effort} value={effort.effort}>
+                  {reasoningLabel(effort.effort)}
+                </option>
+              ))}
+            </select>
+          }
         />
         <SettingRow
           title="ChatGPT account"
@@ -1604,6 +1748,78 @@ function Metric({
     </div>
   );
 }
+
+function MatchupPreview({
+  dashboard,
+  record,
+}: {
+  dashboard: Dashboard;
+  record: string;
+}) {
+  const matchup = dashboard.nextMatchup ?? null;
+  const week = matchup?.week ?? Math.max(dashboard.week, 1);
+  const hasScore = Boolean(
+    matchup &&
+    ((matchup.myPoints ?? 0) > 0 || (matchup.opponent.points ?? 0) > 0),
+  );
+  const myDetail = hasScore ? matchup?.myPoints?.toFixed(1) : `${record} · You`;
+  const opponentDetail = hasScore
+    ? matchup?.opponent.points?.toFixed(1)
+    : matchup?.opponent.record;
+
+  return (
+    <aside className="matchup-preview">
+      <div className="matchup-heading">
+        <span className="eyebrow">Next matchup</span>
+        <span className="week-pill">Week {week}</span>
+      </div>
+      <div className="matchup-teams">
+        <div className="matchup-team">
+          <Avatar
+            name={dashboard.league.teamName}
+            avatar={dashboard.league.avatar}
+          />
+          <div>
+            <strong>{dashboard.league.teamName}</strong>
+            <span>{myDetail}</span>
+          </div>
+        </div>
+        <span className="versus">VS</span>
+        {matchup ? (
+          <div className="matchup-team opponent">
+            <div>
+              <strong>{matchup.opponent.teamName}</strong>
+              <span>{opponentDetail}</span>
+            </div>
+            <Avatar
+              name={matchup.opponent.teamName}
+              avatar={matchup.opponent.avatar}
+            />
+          </div>
+        ) : (
+          <div className="matchup-team opponent pending">
+            <div>
+              <strong>Schedule pending</strong>
+              <span>Opponent TBD</span>
+            </div>
+            <div className="avatar">?</div>
+          </div>
+        )}
+      </div>
+      <div className="matchup-footer">
+        <span>
+          {matchup
+            ? hasScore
+              ? "Live score synced from Sleeper"
+              : "Matchup analysis arrives when weekly data is live"
+            : "Refresh after Sleeper publishes the schedule"}
+        </span>
+        <em>{matchup ? (hasScore ? "Live" : "Preview") : "Waiting"}</em>
+      </div>
+    </aside>
+  );
+}
+
 function EmptyLeague({ onAdd }: { onAdd(): void }) {
   return (
     <div className="empty-league">
@@ -1767,6 +1983,15 @@ function capitalize(value: string) {
   return value
     .replaceAll("_", " ")
     .replace(/^./, (letter) => letter.toUpperCase());
+}
+function reasoningLabel(value: string) {
+  return value === "low"
+    ? "Low · Faster"
+    : value === "medium"
+      ? "Medium · Balanced"
+      : value === "high"
+        ? "High · Deeper"
+        : capitalize(value);
 }
 function draftTitle(status: string) {
   return status === "pre_draft"

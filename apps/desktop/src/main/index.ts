@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { z } from "zod/v4";
 import {
   IPC_CHANNELS,
+  AiSettingsSchema,
   ReportKindSchema,
   type RuntimeEvent,
 } from "@sleeper-caffeine/ipc-contract";
@@ -85,6 +86,9 @@ function registerIpc(): void {
   });
   ipcMain.handle(IPC_CHANNELS.clearLocalData, () =>
     requireRuntime().clearLocalData(),
+  );
+  ipcMain.handle(IPC_CHANNELS.updateAiSettings, (_event, input: unknown) =>
+    requireRuntime().updateAiSettings(AiSettingsSchema.parse(input)),
   );
   ipcMain.handle(IPC_CHANNELS.openExternal, async (_event, input: unknown) => {
     const url = z.string().url().parse(input);

@@ -2,12 +2,17 @@ import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import type {
   AiReport,
+  AiSettings,
   ChatMessage,
   Dashboard,
   ReportKind,
   ReportPayload,
   SavedLeague,
   TeamChoice,
+} from "@sleeper-caffeine/ipc-contract";
+import {
+  AiSettingsSchema,
+  DEFAULT_AI_SETTINGS,
 } from "@sleeper-caffeine/ipc-contract";
 
 type LeagueRow = {
@@ -207,6 +212,37 @@ export class LocalStore {
       .run(leagueId, purpose, threadId);
   }
 
+  getAiSettings(): AiSettings {
+    const rows = this.database
+      .prepare("SELECT key, value FROM app_settings WHERE key IN (?, ?)")
+      .all("ai_model", "ai_effort") as Array<{
+      key: string;
+      value: string;
+    }>;
+    const values = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+    const parsed = AiSettingsSchema.safeParse({
+      model: values["ai_model"] ?? DEFAULT_AI_SETTINGS.model,
+      effort: values["ai_effort"] ?? DEFAULT_AI_SETTINGS.effort,
+    });
+    return parsed.success ? parsed.data : { ...DEFAULT_AI_SETTINGS };
+  }
+
+  saveAiSettings(settings: AiSettings): void {
+    const statement = this.database.prepare(
+      `INSERT INTO app_settings (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    );
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      statement.run("ai_model", settings.model);
+      statement.run("ai_effort", settings.effort);
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   listChatMessages(leagueId: string): ChatMessage[] {
     const rows = this.database
       .prepare(
@@ -287,6 +323,9 @@ export class LocalStore {
       CREATE TABLE IF NOT EXISTS chat_messages (
         id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(league_id) ON DELETE CASCADE,
         role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY, value TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_snapshots_league ON league_snapshots(league_id, captured_at DESC);
       CREATE INDEX IF NOT EXISTS idx_reports_league ON ai_reports(league_id, generated_at DESC);

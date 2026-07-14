@@ -9,8 +9,11 @@ import {
   rosterView,
   type Draft,
   type DraftPick,
+  type Matchup,
   type PlayerSummary,
+  type Roster,
   type RosterView,
+  type SleeperUser,
   type ToolWarning,
 } from "@sleeper-caffeine/core";
 import { LocalMcpBridge } from "@sleeper-caffeine/mcp";
@@ -19,6 +22,7 @@ import {
   ReportPayloadSchema,
   REPORT_OUTPUT_JSON_SCHEMA,
   type AiReport,
+  type AiSettings,
   type Bootstrap,
   type ChatMessage,
   type Dashboard,
@@ -95,8 +99,10 @@ export class AppRuntime extends EventEmitter {
         email: null,
         planType: null,
         errorMessage: null,
+        availableModels: [],
       },
       mcp: this.mcp.getStatus(),
+      aiSettings: this.store.getAiSettings(),
     };
   }
 
@@ -183,9 +189,12 @@ export class AppRuntime extends EventEmitter {
 
   async generateReport(kind: ReportKind): Promise<AiReport> {
     const dashboard = this.requireDashboard();
+    const aiSettings = this.store.getAiSettings();
     const purpose = `report:${kind}`;
     const result = await this.requireCodex().runTurn({
       threadId: this.store.getThread(dashboard.league.leagueId, purpose),
+      model: aiSettings.model,
+      effort: aiSettings.effort,
       prompt: reportPrompt(kind, dashboard),
       outputSchema: REPORT_OUTPUT_JSON_SCHEMA,
       onDelta: (text) => this.send({ type: "report_delta", kind, text }),
@@ -213,11 +222,14 @@ export class AppRuntime extends EventEmitter {
 
   async sendChat(message: string): Promise<ChatMessage> {
     const dashboard = this.requireDashboard();
+    const aiSettings = this.store.getAiSettings();
     const clean = message.trim();
     if (!clean) throw new Error("Ask the analyst a question first");
     this.store.saveChatMessage(dashboard.league.leagueId, "user", clean);
     const result = await this.requireCodex().runTurn({
       threadId: this.store.getThread(dashboard.league.leagueId, "conversation"),
+      model: aiSettings.model,
+      effort: aiSettings.effort,
       prompt: `Active Sleeper league: ${dashboard.league.leagueId}. My Sleeper user ID: ${dashboard.league.userId}. My roster ID: ${String(dashboard.league.rosterId)}.\n\n${clean}`,
       onDelta: (text) => this.send({ type: "chat_delta", text }),
     });
@@ -233,6 +245,24 @@ export class AppRuntime extends EventEmitter {
     );
     this.send({ type: "bootstrap_changed" });
     return response;
+  }
+
+  updateAiSettings(settings: AiSettings): Bootstrap {
+    const selectedModel = this.codex
+      ?.getStatus()
+      .availableModels.find((model) => model.model === settings.model);
+    if (selectedModel) {
+      const supported = selectedModel.supportedReasoningEfforts.some(
+        (effort) => effort.effort === settings.effort,
+      );
+      if (!supported)
+        throw new Error(
+          `${selectedModel.displayName} does not support ${settings.effort} reasoning`,
+        );
+    }
+    this.store.saveAiSettings(settings);
+    this.send({ type: "bootstrap_changed" });
+    return this.bootstrap();
   }
 
   async clearLocalData(): Promise<Bootstrap> {
@@ -288,6 +318,11 @@ export class AppRuntime extends EventEmitter {
       directory.players,
       this.api,
     );
+    const matchupWeek =
+      league.status === "pre_draft" ? 1 : Math.max(state?.week ?? 1, 1);
+    const matchups = await this.api
+      .getMatchups(saved.leagueId, matchupWeek)
+      .catch((): Matchup[] => []);
     const dashboard: Dashboard = {
       league: refreshedLeague,
       capturedAt,
@@ -318,6 +353,13 @@ export class AppRuntime extends EventEmitter {
       },
       warnings,
       draft,
+      nextMatchup: nextMatchupView({
+        week: matchupWeek,
+        rosterId: saved.rosterId,
+        matchups,
+        rosters,
+        users,
+      }),
     };
     return {
       dashboard,
@@ -348,6 +390,59 @@ export class AppRuntime extends EventEmitter {
   private send(event: RuntimeEvent): void {
     this.emit("runtime-event", event);
   }
+}
+
+function nextMatchupView({
+  week,
+  rosterId,
+  matchups,
+  rosters,
+  users,
+}: {
+  week: number;
+  rosterId: number;
+  matchups: Matchup[];
+  rosters: Roster[];
+  users: SleeperUser[];
+}): Dashboard["nextMatchup"] {
+  const mine = matchups.find((matchup) => matchup.roster_id === rosterId);
+  if (mine?.matchup_id == null) return null;
+  const theirs = matchups.find(
+    (matchup) =>
+      matchup.matchup_id === mine.matchup_id && matchup.roster_id !== rosterId,
+  );
+  if (!theirs) return null;
+  const opponentRoster = rosters.find(
+    (roster) => roster.roster_id === theirs.roster_id,
+  );
+  if (!opponentRoster) return null;
+  const opponentOwner = users.find(
+    (user) => user.user_id === opponentRoster.owner_id,
+  );
+  const metadata = opponentOwner?.metadata ?? {};
+  const metadataTeamName = metadata["team_name"];
+  const teamName =
+    typeof metadataTeamName === "string" && metadataTeamName.trim()
+      ? metadataTeamName.trim()
+      : (opponentOwner?.display_name ??
+        opponentOwner?.username ??
+        `Roster ${String(opponentRoster.roster_id)}`);
+  return {
+    week,
+    matchupId: mine.matchup_id,
+    myPoints: matchupPoints(mine),
+    opponent: {
+      rosterId: opponentRoster.roster_id,
+      teamName,
+      avatar: opponentOwner?.avatar ?? null,
+      record: formatRecord(opponentRoster.settings),
+      points: matchupPoints(theirs),
+    },
+  };
+}
+
+function matchupPoints(matchup: Matchup): number | null {
+  return numeric(matchup.custom_points) ?? numeric(matchup.points);
 }
 
 async function buildDraftView(

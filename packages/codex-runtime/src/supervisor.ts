@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
-import type { CodexStatus } from "@sleeper-caffeine/ipc-contract";
+import type { CodexModel, CodexStatus } from "@sleeper-caffeine/ipc-contract";
 import { findCodexBinary, readCodexVersion } from "./discovery.js";
 import { JsonlRpcClient } from "./jsonl-client.js";
 
@@ -16,6 +16,8 @@ export type CodexSupervisorOptions = {
 export type RunTurnInput = {
   threadId?: string | null;
   prompt: string;
+  model: string;
+  effort: string;
   outputSchema?: JsonObject;
   onDelta?: (delta: string) => void;
 };
@@ -32,6 +34,7 @@ export class CodexSupervisor {
     email: null,
     planType: null,
     errorMessage: null,
+    availableModels: [],
   };
 
   constructor(private readonly options: CodexSupervisorOptions) {}
@@ -124,6 +127,7 @@ export class CodexSupervisor {
         capabilities: { experimentalApi: true, requestAttestation: false },
       });
       client.notify("initialized");
+      await this.refreshModels();
       await this.refreshAccount();
     } catch (error) {
       this.setStatus({
@@ -170,6 +174,7 @@ export class CodexSupervisor {
             "thread/resume",
             {
               threadId,
+              model: input.model,
               cwd: this.options.cwd,
               approvalPolicy: "never",
               sandbox: "read-only",
@@ -189,6 +194,7 @@ export class CodexSupervisor {
           "thread/start",
           {
             cwd: this.options.cwd,
+            model: input.model,
             approvalPolicy: "never",
             sandbox: "read-only",
             ephemeral: false,
@@ -255,6 +261,8 @@ export class CodexSupervisor {
       client
         .request<{ turn: { id: string } }>("turn/start", {
           threadId,
+          model: input.model,
+          effort: input.effort,
           input: [{ type: "text", text: input.prompt, text_elements: [] }],
           approvalPolicy: "never",
           sandboxPolicy: { type: "readOnly", networkAccess: true },
@@ -300,6 +308,41 @@ export class CodexSupervisor {
         planType: null,
         errorMessage: null,
       });
+    }
+  }
+
+  private async refreshModels(): Promise<void> {
+    try {
+      const response = await this.requireClient().request<{
+        data: Array<{
+          model: string;
+          displayName: string;
+          description: string;
+          isDefault: boolean;
+          defaultReasoningEffort: string;
+          supportedReasoningEfforts: Array<{
+            reasoningEffort: string;
+            description: string;
+          }>;
+        }>;
+      }>("model/list", { includeHidden: false, limit: 100 });
+      const availableModels: CodexModel[] = response.data.map((model) => ({
+        model: model.model,
+        displayName: model.displayName,
+        description: model.description,
+        isDefault: model.isDefault,
+        defaultReasoningEffort: model.defaultReasoningEffort,
+        supportedReasoningEfforts: model.supportedReasoningEfforts.map(
+          (effort) => ({
+            effort: effort.reasoningEffort,
+            description: effort.description,
+          }),
+        ),
+      }));
+      this.setStatus({ availableModels });
+    } catch {
+      // Older app-server builds may not expose the catalog. The persisted
+      // model override still works and the UI falls back to known defaults.
     }
   }
 
