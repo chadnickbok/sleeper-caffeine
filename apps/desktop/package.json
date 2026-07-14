@@ -1,0 +1,40 @@
+{
+  "name": "@sleeper-caffeine/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A read-only fantasy football front office powered by Sleeper and Codex.",
+  "author": "Sleeper Caffeine contributors",
+  "license": "MIT",
+  "productName": "Sleeper Caffeine",
+  "packageManager": "pnpm@10.23.0",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev --watch",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "lint": "eslint src electron.vite.config.ts",
+    "test": "vitest run --passWithNoTests",
+    "dist:mac": "pnpm build && electron-builder --mac",
+    "dist:linux": "pnpm build && electron-builder --linux",
+    "dist:win": "pnpm build && electron-builder --win"
+  },
+  "dependencies": {
+    "@sleeper-caffeine/codex-runtime": "workspace:*",
+    "@sleeper-caffeine/core": "workspace:*",
+    "@sleeper-caffeine/ipc-contract": "workspace:*",
+    "@sleeper-caffeine/mcp": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.4",
+    "electron": "41.0.4",
+    "electron-builder": "26.8.1",
+    "electron-vite": "5.0.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "vite": "7.3.6"
+  }
+}

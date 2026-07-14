@@ -1,144 +1,178 @@
-# Sleeper MCP
+# Sleeper Caffeine
 
-A local, read-only Model Context Protocol server for Sleeper fantasy football. It joins Sleeper player IDs to compact player profiles, caches the large NFL player directory, and exposes league-aware tools for roster, waiver-pool, matchup, trade, and history context.
+Sleeper Caffeine is an open-source, read-only fantasy football front office for the desktop. Connect a public Sleeper league, choose your roster, and use Codex to produce league-specific analysis grounded in live Sleeper data and current web research.
 
-## Safety and data scope
+The first release is intentionally safe: it cannot change a lineup, submit a waiver claim, send a trade, or accept one.
 
-- Sleeper's public API is read-only and requires no token.
-- This server never accepts a Sleeper password, email credential, wallet secret, or browser cookie.
-- It cannot change a lineup, submit a waiver, or accept a trade.
-- “Available” means absent from every current league roster. It does not prove waiver clearance, lock status, or lineup eligibility.
-- Sleeper does not provide all current news, weather, independent projections, or optimal-lineup recommendations. Combine tool results with current external sources when making decisions.
+## What works today
+
+- Multi-league onboarding from a Sleeper league URL or ID.
+- Team selection with Sleeper names, avatars, roster IDs, and user IDs.
+- A polished dashboard, full roster room, reserve/taxi handling, headshots, and fallbacks.
+- Manual Sleeper refresh with an immutable local snapshot history.
+- A live draft board with completed picks and upcoming native draft slots.
+- On-demand AI cards for team analysis, trade ideas, and draft candidates.
+- A persistent conversational analyst scoped to the active league.
+- Live web research with an explicit distinction between search/discovery and cited sources.
+- Waiver and weekly start/sit surfaces marked for activation when regular-season data is meaningful.
+- A standalone Sleeper MCP server over stdio and an app-managed Streamable HTTP bridge.
+
+## Product principles
+
+1. **League data first.** Codex must read the Sleeper MCP before making league-specific claims.
+2. **Refresh is deterministic.** Refreshing Sleeper updates SQLite and invalidates stale reports; it never spends an AI turn.
+3. **AI is explicit.** Every report has its own Generate or Regenerate action.
+4. **Search is not a source.** Search discovers material. Reports cite the page actually used.
+5. **Read-only means read-only.** No Sleeper credentials, browser cookies, shell access, or hidden roster mutations.
+6. **Local by default.** League snapshots, reports, recommendation history, chat, and the isolated Codex home live on the user's machine.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Renderer["Electron renderer"] -->|typed IPC| Main["Electron main process"]
+    Main --> Store["SQLite snapshots + reports"]
+    Main --> Core["sleeper-core"]
+    Main --> Codex["Installed codex app-server"]
+    Codex -->|Streamable HTTP| MCP["Sleeper MCP bridge"]
+    MCP --> Core
+    Core --> API["Sleeper public API"]
+    Core --> Cache["24-hour player cache"]
+    Codex --> Web["Live web search"]
+```
+
+The renderer is sandboxed and receives only a narrow preload API. It never receives OpenAI tokens, raw child-process access, SQLite access, or arbitrary filesystem primitives.
+
+Codex runs as one long-lived `codex app-server` process with:
+
+- A dedicated `CODEX_HOME` inside the app's user-data directory.
+- Codex-managed ChatGPT OAuth.
+- A read-only sandbox and `approvalPolicy: "never"`.
+- The shell tool disabled.
+- Live web search enabled.
+- The local Sleeper MCP configured automatically.
+
+Sleeper Caffeine discovers Codex through `CODEX_CLI_PATH`, the user's `PATH`, or known Codex/ChatGPT application locations. It does not bundle a Codex binary.
+
+## Repository layout
+
+```text
+apps/
+  desktop/                 Electron + React desktop product
+packages/
+  sleeper-core/            Sleeper API, schemas, joins, cache, domain logic
+  sleeper-mcp/             Standalone MCP plus stdio and HTTP transports
+  ipc-contract/            Renderer/main schemas and typed API
+  codex-runtime/           Binary discovery, JSONL RPC, OAuth, threads, turns
+```
+
+The desktop and MCP use the same `sleeper-core`; the UI never calls the MCP as an internal API.
 
 ## Requirements
 
-- Node.js 20 or newer
-- npm
+- Node.js 22 or newer.
+- pnpm 10.
+- An installed Codex CLI or an application that ships the Codex binary.
+- A ChatGPT account for AI analysis. Sleeper browsing and roster views work without it.
 
-## Install and build
-
-```bash
-npm install
-npm run build
-```
-
-Run the MCP server over local stdio:
+## Run locally
 
 ```bash
-npm start
+pnpm install
+pnpm dev
 ```
 
-The process writes MCP protocol messages to stdout. Startup failures and maintenance messages go to stderr.
-
-## Add to an MCP client
-
-Use the absolute path to the built entry point in your client's local MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "sleeper": {
-      "command": "node",
-      "args": ["/absolute/path/to/sleeper-mcp/dist/src/index.js"]
-    }
-  }
-}
-```
-
-For Codex CLI, the equivalent command is:
+Production build:
 
 ```bash
-codex mcp add sleeper -- node /absolute/path/to/sleeper-mcp/dist/src/index.js
+pnpm build
 ```
 
-Restart or refresh the client after changing its MCP configuration.
-
-## Tools
-
-| Tool | Purpose |
-| --- | --- |
-| `get_team_snapshot` | League settings, joined roster, selected week's matchup, and traded-pick context for one manager. |
-| `get_available_players` | Players absent from all current rosters, with position/search filters and optional Sleeper trending-add ranking. |
-| `get_matchup_context` | Both sides of a weekly matchup, including ordered starters, bench, reserve, taxi, points, scoring, and roster slots. |
-| `get_trade_context` | Every roster, traded-picks ledger, drafts, and optionally selected weeks of transaction history. |
-| `get_league_history` | Up to ten linked seasons using Sleeper's `previous_league_id` chain. |
-
-All IDs are strings except Sleeper roster IDs, which are numbers. Pass a username or stable user ID through `username_or_user_id`.
-
-Example tool input:
-
-```json
-{
-  "league_id": "123456789012345678",
-  "username_or_user_id": "your_sleeper_username",
-  "week": 3
-}
-```
-
-## Player cache
-
-Sleeper asks clients to fetch `/players/nfl` no more than daily. The server stores the validated response at `.cache/sleeper/players-nfl.json`, indexes it in memory, and shares one refresh across concurrent callers.
-
-If a refresh fails and a valid older cache exists, tools return the stale cache with a `STALE_PLAYER_CACHE` warning and timestamp. If no valid cache exists, the tool fails clearly.
-
-Refresh explicitly:
+Package the current platform:
 
 ```bash
-npm run cache:refresh
+pnpm dist:mac
+pnpm dist:linux
+pnpm dist:win
 ```
 
-Override the cache directory:
+The app is not yet signed or notarized. Local macOS builds may require the standard unsigned-app development workflow.
+
+## Standalone Sleeper MCP
+
+The original adapter remains independently usable:
 
 ```bash
-SLEEPER_CACHE_DIR=/path/to/cache npm start
+pnpm build:packages
+pnpm --filter @sleeper-caffeine/mcp start
 ```
 
-## Development
+Example Codex CLI registration:
 
 ```bash
-npm run dev
-npm run typecheck
-npm run lint
-npm test
-npm run build
+codex mcp add sleeper -- node /absolute/path/to/sleeper-caffeine/packages/sleeper-mcp/dist/src/index.js
 ```
 
-Inspect the built server interactively:
+Tools:
+
+| Tool                    | Purpose                                                        |
+| ----------------------- | -------------------------------------------------------------- |
+| `get_team_snapshot`     | Settings, joined roster, matchup, and traded-pick context.     |
+| `get_available_players` | Players absent from every current league roster.               |
+| `get_matchup_context`   | Both sides of a weekly matchup with joined players.            |
+| `get_trade_context`     | Every roster, traded picks, drafts, and selected transactions. |
+| `get_league_history`    | Linked historical seasons and obtainable champions.            |
+
+Sleeper's player directory is cached for 24 hours. “Available” means absent from current rosters; it does not prove waiver clearance or lineup eligibility.
+
+## Development checks
 
 ```bash
-npm run build
-npm run inspect
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
 ```
 
-Live tests are opt-in and execute only documented GET endpoints:
+Read-only live checks are opt-in:
 
 ```bash
 SLEEPER_LIVE_LEAGUE_ID=123456789012345678 \
 SLEEPER_LIVE_USER=your_username \
-npm run test:live
+pnpm test:live
 ```
 
-Fixture tests do not use a real Sleeper account and do not require network access.
+The desktop also contains opt-in live coverage for onboarding and the Codex app-server handshake.
 
-## Result freshness and errors
+## Data and privacy
 
-Successful structured results include:
+- Sleeper's documented fantasy API is public and read-only; no Sleeper password is requested.
+- ChatGPT login is managed and stored by Codex inside the app-specific `CODEX_HOME`.
+- OpenAI access and refresh tokens are never exposed to the renderer or stored in SQLite.
+- “Clear local league data” removes leagues, snapshots, reports, chats, thread references, and the player cache. It deliberately does not sign the user out of ChatGPT.
+- The Athletic may appear in public search results, but this release does not automate a signed-in browser or bypass a subscription wall.
 
-- `as_of`: when the MCP result was assembled.
-- `source`: always `sleeper` in v0.1.
-- `cache.players_fetched_at`: age of joined player metadata.
-- `cache.players_stale`: whether a failed refresh caused stale fallback.
-- `warnings`: partial-data and semantic caveats.
-- `data`: compact tool-specific content.
+See [SECURITY.md](./SECURITY.md) for reporting and trust boundaries.
 
-Stable error codes include `INVALID_INPUT`, `SLEEPER_NOT_FOUND`, `SLEEPER_RATE_LIMITED`, `SLEEPER_UNAVAILABLE`, `INVALID_SLEEPER_RESPONSE`, `PLAYER_CACHE_UNAVAILABLE`, and `TEAM_NOT_FOUND`.
+## Roadmap
 
-## Architecture and roadmap
+- Regular-season waiver and start/sit intelligence.
+- Faster live-draft polling and pick-aware candidate refresh.
+- Recommendation outcomes and retrospective scoring.
+- Additional projections/rankings adapters with clear licensing boundaries.
+- Cross-platform release signing and auto-update infrastructure.
+- Any future Sleeper write automation only as a separately designed, opt-in capability with explicit confirmations.
 
-See [PLAN.md](./PLAN.md) for the architecture, endpoint map, implementation phases, security constraints, future Streamable HTTP transport, and the separate design review required before any browser-based write automation.
+## Contributing
+
+Issues and pull requests are welcome. Start with [CONTRIBUTING.md](./CONTRIBUTING.md), and keep every proposed Sleeper integration read-only unless a future design document explicitly changes that boundary.
 
 ## Sources
 
 - [Sleeper API documentation](https://docs.sleeper.com/)
-- [Official MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
-- [OpenAI Apps SDK MCP server guide](https://developers.openai.com/apps-sdk/build/mcp-server)
+- [Model Context Protocol TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
+- [OpenAI Codex app-server documentation](https://developers.openai.com/codex/app-server)
+
+## License
+
+[MIT](./LICENSE)

@@ -3,7 +3,15 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**", ".cache/**", "coverage/**", "eslint.config.js"],
+    ignores: [
+      "**/dist/**",
+      "**/out/**",
+      "**/dist-electron/**",
+      "node_modules/**",
+      ".cache/**",
+      "coverage/**",
+      "eslint.config.js",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -22,10 +30,18 @@ export default tseslint.config(
     },
   },
   {
-    files: ["test/**/*.ts"],
+    files: ["**/test/**/*.ts", "**/*.test.ts", "**/*.test.tsx"],
     rules: {
       "@typescript-eslint/no-non-null-assertion": "off",
       "@typescript-eslint/require-await": "off",
+    },
+  },
+  {
+    files: ["**/*.tsx"],
+    rules: {
+      // JSX callback props are plain functions; the rule cannot distinguish
+      // them from object methods that depend on a receiver.
+      "@typescript-eslint/unbound-method": "off",
     },
   },
 );

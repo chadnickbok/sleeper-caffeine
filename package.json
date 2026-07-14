@@ -1,37 +1,34 @@
 {
-  "name": "sleeper-mcp",
+  "name": "sleeper-caffeine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A read-only MCP server for Sleeper fantasy football leagues.",
+  "description": "An open-source Sleeper fantasy football desktop analyst powered by Codex.",
   "license": "MIT",
+  "packageManager": "pnpm@10.23.0",
   "engines": {
-    "node": ">=20"
-  },
-  "bin": {
-    "sleeper-mcp": "dist/src/index.js"
+    "node": ">=22"
   },
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/src/index.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint .",
-    "test": "vitest run --exclude test/live/**",
-    "test:watch": "vitest",
-    "test:live": "RUN_LIVE_TESTS=1 vitest run test/live",
-    "inspect": "npx @modelcontextprotocol/inspector@latest node dist/src/index.js",
-    "cache:refresh": "tsx scripts/refresh-player-cache.ts"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
-    "zod": "4.4.3"
+    "build:packages": "pnpm exec tsc -b tsconfig.packages.json",
+    "build:desktop": "pnpm --filter @sleeper-caffeine/desktop build",
+    "build": "pnpm build:packages && pnpm build:desktop",
+    "dev": "pnpm build:packages && pnpm --filter @sleeper-caffeine/desktop dev",
+    "dev:mcp": "pnpm --filter @sleeper-caffeine/mcp dev",
+    "dist:mac": "pnpm build:packages && pnpm --filter @sleeper-caffeine/desktop dist:mac",
+    "dist:linux": "pnpm build:packages && pnpm --filter @sleeper-caffeine/desktop dist:linux",
+    "dist:win": "pnpm build:packages && pnpm --filter @sleeper-caffeine/desktop dist:win",
+    "typecheck": "pnpm build:packages && pnpm --filter @sleeper-caffeine/desktop typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm build:packages && pnpm -r test",
+    "test:live": "pnpm --filter @sleeper-caffeine/mcp test:live",
+    "cache:refresh": "pnpm --filter @sleeper-caffeine/mcp cache:refresh"
   },
   "devDependencies": {
     "@eslint/js": "9.39.2",
     "@types/node": "24.10.13",
     "eslint": "9.39.2",
-    "tsx": "4.23.1",
+    "prettier": "3.8.1",
     "typescript": "5.9.3",
     "typescript-eslint": "8.64.0",
     "vitest": "4.1.10"

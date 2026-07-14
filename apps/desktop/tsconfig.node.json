@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "rootDir": "."
+  },
+  "include": [
+    "electron.vite.config.ts",
+    "src/main/**/*.ts",
+    "src/preload/**/*.ts"
+  ],
+  "references": [
+    { "path": "../../packages/sleeper-core/tsconfig.build.json" },
+    { "path": "../../packages/sleeper-mcp/tsconfig.build.json" },
+    { "path": "../../packages/ipc-contract/tsconfig.build.json" },
+    { "path": "../../packages/codex-runtime/tsconfig.build.json" }
+  ]
+}
