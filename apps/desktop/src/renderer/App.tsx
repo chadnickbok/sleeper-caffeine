@@ -250,6 +250,7 @@ export function App() {
               busy={busy}
               reportDelta={reportDelta}
               onGenerate={(kind) => void generate(kind)}
+              onNavigate={setPage}
               onRefresh={() =>
                 void act("refresh", () =>
                   window.sleeperCaffeine.refreshActiveLeague(),
@@ -315,6 +316,7 @@ function PageContent(props: {
   busy: string | null;
   reportDelta: string;
   onGenerate(kind: ReportKind): void;
+  onNavigate(page: Page): void;
   onRefresh(): void;
   onLogin(): void;
   onClear(): void;
@@ -328,7 +330,11 @@ function PageContent(props: {
         teamReport={props.teamReport}
         tradeReport={props.tradeReport}
         draftReport={props.draftReport}
-        onNavigate={() => undefined}
+        codex={props.data.codex}
+        busy={props.busy}
+        onNavigate={props.onNavigate}
+        onGenerate={props.onGenerate}
+        onLogin={props.onLogin}
       />
     );
   if (props.page === "roster")
@@ -401,12 +407,21 @@ function Home({
   teamReport,
   tradeReport,
   draftReport,
+  codex,
+  busy,
+  onNavigate,
+  onGenerate,
+  onLogin,
 }: {
   dashboard: Dashboard;
   teamReport: AiReport | null;
   tradeReport: AiReport | null;
   draftReport: AiReport | null;
-  onNavigate(): void;
+  codex: CodexStatus;
+  busy: string | null;
+  onNavigate(page: Page): void;
+  onGenerate(kind: ReportKind): void;
+  onLogin(): void;
 }) {
   const record = dashboard.record;
   const roster = [
@@ -453,22 +468,40 @@ function Home({
         />
         <div className="intelligence-grid">
           <ReportTeaser
+            kind="team_analysis"
             title="Team pulse"
             icon="pulse"
             report={teamReport}
             fallback="Run the first audit to surface strengths, weak links, and roster dead weight."
+            status={codex}
+            running={busy === "report:team_analysis"}
+            onOpen={() => onNavigate("analysis")}
+            onGenerate={() => onGenerate("team_analysis")}
+            onLogin={onLogin}
           />
           <ReportTeaser
+            kind="trade_suggestions"
             title="Trade radar"
             icon="swap"
             report={tradeReport}
             fallback="Map the league and find partners whose needs line up with your excess."
+            status={codex}
+            running={busy === "report:trade_suggestions"}
+            onOpen={() => onNavigate("trades")}
+            onGenerate={() => onGenerate("trade_suggestions")}
+            onLogin={onLogin}
           />
           <ReportTeaser
+            kind="draft_candidates"
             title="Draft board"
             icon="target"
             report={draftReport}
             fallback="Build a shortlist around roster shape, settings, picks, and current news."
+            status={codex}
+            running={busy === "report:draft_candidates"}
+            onOpen={() => onNavigate("draft")}
+            onGenerate={() => onGenerate("draft_candidates")}
+            onLogin={onLogin}
           />
         </div>
       </section>
@@ -1636,18 +1669,45 @@ function Avatar({
 }
 
 function ReportTeaser({
+  kind,
   title,
   icon,
   report,
   fallback,
+  status,
+  running,
+  onOpen,
+  onGenerate,
+  onLogin,
 }: {
+  kind: ReportKind;
   title: string;
   icon: string;
   report: AiReport | null;
   fallback: string;
+  status: CodexStatus;
+  running: boolean;
+  onOpen(): void;
+  onGenerate(): void;
+  onLogin(): void;
 }) {
+  const canAct = status.state === "ready" || status.state === "signed_out";
   return (
-    <article className="report-teaser">
+    <article
+      className="report-teaser"
+      data-report-kind={kind}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${title}`}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+    >
       <div className="teaser-icon">
         <Icon name={icon} />
       </div>
@@ -1659,7 +1719,25 @@ function ReportTeaser({
         <h3>{report?.payload.headline ?? "Not generated yet"}</h3>
         <p>{report?.payload.summary ?? fallback}</p>
       </div>
-      <Icon name="arrow" />
+      <div className="teaser-actions">
+        <Icon name="arrow" />
+        <button
+          disabled={running || !canAct}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (status.state === "signed_out") onLogin();
+            else onGenerate();
+          }}
+        >
+          {running
+            ? "Working…"
+            : status.state === "signed_out"
+              ? "Connect"
+              : report
+                ? "Regenerate"
+                : "Generate"}
+        </button>
+      </div>
     </article>
   );
 }

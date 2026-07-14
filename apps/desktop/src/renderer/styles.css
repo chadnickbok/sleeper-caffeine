@@ -874,18 +874,23 @@ button {
   min-width: 0;
   min-height: 151px;
   display: grid;
-  grid-template-columns: 36px 1fr 16px;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   gap: 11px;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 15px;
   background: linear-gradient(145deg, #0d1d2b, #0a1927);
   transition: 0.18s ease;
+  cursor: pointer;
 }
 .report-teaser:hover {
   transform: translateY(-2px);
   border-color: rgba(54, 206, 211, 0.2);
   background: #18201b;
+}
+.report-teaser:focus-visible {
+  outline: 1px solid rgba(54, 206, 211, 0.5);
+  outline-offset: 3px;
 }
 .teaser-icon {
   width: 35px;
@@ -938,10 +943,35 @@ button {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
 }
-.report-teaser > .icon {
+.teaser-actions {
+  min-width: 68px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.teaser-actions > .icon {
   width: 14px;
   color: var(--faint);
-  align-self: center;
+}
+.teaser-actions button {
+  padding: 6px 8px;
+  border: 1px solid rgba(54, 206, 211, 0.18);
+  border-radius: 7px;
+  color: #9fdbdd;
+  background: rgba(54, 206, 211, 0.06);
+  font:
+    500 7px DM Mono,
+    monospace;
+  cursor: pointer;
+}
+.teaser-actions button:hover:not(:disabled) {
+  border-color: rgba(54, 206, 211, 0.36);
+  background: rgba(54, 206, 211, 0.11);
+}
+.teaser-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 .two-column {
   display: grid;
