@@ -16,6 +16,7 @@ import type {
   ReportKind,
   RuntimeEvent,
 } from "@sleeper-caffeine/ipc-contract";
+import sleeperCaffeineBadge from "./assets/sleeper-caffeine-badge.svg";
 
 type Page =
   | "home"
@@ -108,9 +109,12 @@ export function App() {
       <aside className="sidebar">
         <div className="traffic-space" />
         <div className="brand">
-          <div className="brand-mark">
-            <span />
-          </div>
+          <img
+            className="brand-mark"
+            src={sleeperCaffeineBadge}
+            alt=""
+            aria-hidden="true"
+          />
           <div>
             <strong>Sleeper</strong>
             <small>Caffeine</small>
@@ -1036,22 +1040,22 @@ function Onboarding({
           </button>
         )}
         <div className="onboarding-art">
-          <div className="brand-mark giant">
-            <span />
-          </div>
-          <span className="eyebrow">League onboarding</span>
-          <h2>
-            Your league.
-            <br />
-            Fully awake.
-          </h2>
-          <p>
-            No Sleeper password. No write access. Just your public league state
-            and a much sharper front office.
-          </p>
-          <div className="privacy-note">
-            <Icon name="lock" />
-            <span>Sleeper’s public API is read-only</span>
+          <img
+            className="brand-mark giant"
+            src={sleeperCaffeineBadge}
+            alt="Sleeper Caffeine"
+          />
+          <div className="onboarding-copy">
+            <span className="eyebrow">League onboarding</span>
+            <h2>
+              Wake up your team.
+              <br />
+              With Caffeine.
+            </h2>
+            <p>
+              Use your Codex subscription and Sleeper’s public API to unlock
+              league-specific insights and make sharper roster decisions.
+            </p>
           </div>
         </div>
         <div className="onboarding-form">
@@ -1064,7 +1068,7 @@ function Onboarding({
             <form onSubmit={(event) => void lookup(event)}>
               <span className="eyebrow">Step one</span>
               <h3>Connect a league</h3>
-              <p>Paste the league page from Sleeper. Numeric IDs work too.</p>
+              <p>Paste the league URL from Sleeper. Numeric IDs work too.</p>
               <label>
                 League URL
                 <input
@@ -1618,9 +1622,11 @@ function EmptyLeague({ onAdd }: { onAdd(): void }) {
 function LaunchScreen({ error }: { error: string | null }) {
   return (
     <div className="launch-screen">
-      <div className="brand-mark giant">
-        <span />
-      </div>
+      <img
+        className="brand-mark giant"
+        src={sleeperCaffeineBadge}
+        alt="Sleeper Caffeine"
+      />
       <strong>Sleeper Caffeine</strong>
       <span>{error ?? "Warming up the front office…"}</span>
     </div>
