@@ -1,0 +1,13 @@
+[
+  {
+    "draft_id": "draft1",
+    "league_id": "12345",
+    "season": "2026",
+    "season_type": "regular",
+    "status": "complete",
+    "type": "snake",
+    "start_time": 1780000000000,
+    "settings": { "teams": 2, "rounds": 4 },
+    "metadata": { "name": "Fixture Draft" }
+  }
+]

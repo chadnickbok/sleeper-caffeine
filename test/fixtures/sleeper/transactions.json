@@ -1,0 +1,16 @@
+[
+  {
+    "transaction_id": "tx1",
+    "type": "trade",
+    "status": "complete",
+    "created": 1780000000000,
+    "status_updated": 1780000001000,
+    "leg": 3,
+    "roster_ids": [1, 2],
+    "consenter_ids": [1, 2],
+    "adds": { "p3": 1, "p2": 2 },
+    "drops": null,
+    "draft_picks": [],
+    "waiver_budget": []
+  }
+]

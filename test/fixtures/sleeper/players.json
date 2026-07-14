@@ -1,0 +1,73 @@
+{
+  "p1": {
+    "player_id": "p1",
+    "first_name": "Alice",
+    "last_name": "Quarterback",
+    "position": "QB",
+    "fantasy_positions": ["QB"],
+    "team": "SEA",
+    "status": "Active",
+    "injury_status": null,
+    "depth_chart_position": "QB",
+    "search_rank": 10
+  },
+  "p2": {
+    "player_id": "p2",
+    "first_name": "Bob",
+    "last_name": "Runner",
+    "position": "RB",
+    "fantasy_positions": ["RB"],
+    "team": "LAR",
+    "status": "Active",
+    "search_rank": 20
+  },
+  "p3": {
+    "player_id": "p3",
+    "first_name": "Carla",
+    "last_name": "Receiver",
+    "position": "WR",
+    "fantasy_positions": ["WR"],
+    "team": "SF",
+    "status": "Active",
+    "search_rank": 30
+  },
+  "p4": {
+    "player_id": "p4",
+    "first_name": "Dana",
+    "last_name": "Available",
+    "position": "WR",
+    "fantasy_positions": ["WR"],
+    "team": "ARI",
+    "status": "Active",
+    "search_rank": 40
+  },
+  "p5": {
+    "player_id": "p5",
+    "first_name": "Evan",
+    "last_name": "Inactive",
+    "position": "RB",
+    "fantasy_positions": ["RB"],
+    "team": null,
+    "status": "Inactive",
+    "search_rank": 50
+  },
+  "p6": {
+    "player_id": "p6",
+    "first_name": "Frank",
+    "last_name": "Tightend",
+    "position": "TE",
+    "fantasy_positions": ["TE"],
+    "team": "DEN",
+    "status": "Active",
+    "search_rank": 60
+  },
+  "SEA": {
+    "player_id": "SEA",
+    "full_name": "Seattle Seahawks",
+    "position": "DEF",
+    "fantasy_positions": ["DEF"],
+    "team": "SEA",
+    "status": "Active",
+    "search_rank": 100
+  }
+}

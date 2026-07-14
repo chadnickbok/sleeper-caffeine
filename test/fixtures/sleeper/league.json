@@ -1,0 +1,14 @@
+{
+  "league_id": "12345",
+  "name": "Fixture League",
+  "season": "2026",
+  "season_type": "regular",
+  "status": "in_season",
+  "sport": "nfl",
+  "total_rosters": 2,
+  "roster_positions": ["QB", "RB", "WR", "FLEX", "BN"],
+  "scoring_settings": { "rec": 1, "pass_td": 4 },
+  "settings": { "waiver_type": 2, "draft_rounds": 4 },
+  "previous_league_id": null,
+  "draft_id": "draft1"
+}

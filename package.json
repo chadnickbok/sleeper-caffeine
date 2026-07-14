@@ -1,0 +1,39 @@
+{
+  "name": "sleeper-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A read-only MCP server for Sleeper fantasy football leagues.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "sleeper-mcp": "dist/src/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/src/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --exclude test/live/**",
+    "test:watch": "vitest",
+    "test:live": "RUN_LIVE_TESTS=1 vitest run test/live",
+    "inspect": "npx @modelcontextprotocol/inspector@latest node dist/src/index.js",
+    "cache:refresh": "tsx scripts/refresh-player-cache.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.2",
+    "@types/node": "24.10.13",
+    "eslint": "9.39.2",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.64.0",
+    "vitest": "4.1.10"
+  }
+}

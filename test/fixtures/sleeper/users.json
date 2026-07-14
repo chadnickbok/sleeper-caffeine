@@ -1,0 +1,16 @@
+[
+  {
+    "user_id": "u1",
+    "username": "manager_one",
+    "display_name": "Manager One",
+    "metadata": { "team_name": "The Ones" },
+    "is_owner": true
+  },
+  {
+    "user_id": "u2",
+    "username": "manager_two",
+    "display_name": "Manager Two",
+    "metadata": { "team_name": "The Twos" },
+    "is_owner": null
+  }
+]
