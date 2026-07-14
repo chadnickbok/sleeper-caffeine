@@ -14,9 +14,7 @@ live("desktop Sleeper sync", () => {
       const preview = await runtime.previewLeague(
         "https://sleeper.com/leagues/289646328504385536/",
       );
-      const team = preview.teams.find((candidate) =>
-        candidate.teamName.toLowerCase().includes("kamara"),
-      );
+      const team = preview.teams[0];
       expect(team).toBeDefined();
 
       const result = await runtime.saveLeague({
@@ -25,9 +23,8 @@ live("desktop Sleeper sync", () => {
         userId: team!.userId,
       });
 
-      expect(result.activeDashboard?.league.teamName.toLowerCase()).toContain(
-        "kamara",
-      );
+      expect(result.activeDashboard?.league.leagueId).toBe(preview.leagueId);
+      expect(result.activeDashboard?.league.rosterId).toBe(team!.rosterId);
       expect(result.activeDashboard?.starters.length).toBeGreaterThan(0);
       expect(result.activeDashboard?.bench.length).toBeGreaterThan(0);
     } finally {
