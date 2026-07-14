@@ -463,8 +463,7 @@ function Home({
       <section className="section-block">
         <SectionTitle
           eyebrow="Intelligence desk"
-          title="What needs your attention"
-          trailing={<span className="subtle">AI runs only when you ask</span>}
+          title="Dive deeper into your league, roster, and draft position."
         />
         <div className="intelligence-grid">
           <ReportTeaser
@@ -1692,6 +1691,19 @@ function ReportTeaser({
   onLogin(): void;
 }) {
   const canAct = status.state === "ready" || status.state === "signed_out";
+  const headline =
+    report?.microSummary?.headline ??
+    report?.payload.headline ??
+    "Not generated yet";
+  const summary =
+    report?.microSummary?.summary ?? report?.payload.summary ?? fallback;
+  const freshness = report
+    ? `${report.invalidated ? "Stale · " : ""}Updated ${relativeTime(report.generatedAt)}`
+    : "Not generated";
+  const runGeneration = () => {
+    if (status.state === "signed_out") onLogin();
+    else onGenerate();
+  };
   return (
     <article
       className="report-teaser"
@@ -1711,32 +1723,59 @@ function ReportTeaser({
       <div className="teaser-icon">
         <Icon name={icon} />
       </div>
-      <div>
-        <span>
-          {title}
-          {report?.invalidated && <em>stale</em>}
-        </span>
-        <h3>{report?.payload.headline ?? "Not generated yet"}</h3>
-        <p>{report?.payload.summary ?? fallback}</p>
+      <div className="teaser-content">
+        <div className="teaser-copy">
+          <div className="teaser-meta">
+            <span>{title}</span>
+            <i />
+            <small className={report?.invalidated ? "stale" : undefined}>
+              {freshness}
+            </small>
+          </div>
+          <h3>{headline}</h3>
+          <p>{summary}</p>
+        </div>
+        {report ? (
+          <span className="teaser-read">
+            Read analysis <Icon name="arrow" />
+          </span>
+        ) : (
+          <button
+            className="teaser-generate"
+            disabled={running || !canAct}
+            onClick={(event) => {
+              event.stopPropagation();
+              runGeneration();
+            }}
+          >
+            {running
+              ? "Building analysis…"
+              : status.state === "signed_out"
+                ? "Connect to generate"
+                : "Generate analysis"}
+            <Icon name="arrow" />
+          </button>
+        )}
       </div>
       <div className="teaser-actions">
-        <Icon name="arrow" />
-        <button
-          disabled={running || !canAct}
-          onClick={(event) => {
-            event.stopPropagation();
-            if (status.state === "signed_out") onLogin();
-            else onGenerate();
-          }}
-        >
-          {running
-            ? "Working…"
-            : status.state === "signed_out"
-              ? "Connect"
-              : report
-                ? "Regenerate"
-                : "Generate"}
-        </button>
+        {report && (
+          <button
+            className="teaser-refresh"
+            aria-label={`Refresh ${title}`}
+            title={
+              status.state === "signed_out"
+                ? "Connect ChatGPT to refresh analysis"
+                : "Refresh analysis"
+            }
+            disabled={running || !canAct}
+            onClick={(event) => {
+              event.stopPropagation();
+              runGeneration();
+            }}
+          >
+            <Icon name="refresh" spin={running} />
+          </button>
+        )}
       </div>
     </article>
   );

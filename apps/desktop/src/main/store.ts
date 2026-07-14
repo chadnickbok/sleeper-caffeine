@@ -5,6 +5,7 @@ import type {
   AiSettings,
   ChatMessage,
   Dashboard,
+  MicroSummary,
   ReportKind,
   ReportPayload,
   SavedLeague,
@@ -13,6 +14,7 @@ import type {
 import {
   AiSettingsSchema,
   DEFAULT_AI_SETTINGS,
+  MicroSummarySchema,
 } from "@sleeper-caffeine/ipc-contract";
 
 type LeagueRow = {
@@ -152,6 +154,7 @@ export class LocalStore {
       snapshot_at: string;
       invalidated: number;
       payload_json: string;
+      micro_summary_json: string | null;
     }>;
     return rows.map((row) => ({
       id: row.id,
@@ -161,6 +164,9 @@ export class LocalStore {
       snapshotAt: row.snapshot_at,
       invalidated: row.invalidated === 1,
       payload: JSON.parse(row.payload_json) as ReportPayload,
+      microSummary: row.micro_summary_json
+        ? MicroSummarySchema.parse(JSON.parse(row.micro_summary_json))
+        : null,
     }));
   }
 
@@ -178,6 +184,7 @@ export class LocalStore {
       snapshotAt: input.snapshotAt,
       invalidated: false,
       payload: input.payload,
+      microSummary: null,
     };
     this.database
       .prepare(
@@ -192,6 +199,14 @@ export class LocalStore {
         JSON.stringify(report.payload),
       );
     return report;
+  }
+
+  saveMicroSummary(report: AiReport, input: MicroSummary): AiReport {
+    const microSummary = MicroSummarySchema.parse(input);
+    this.database
+      .prepare("UPDATE ai_reports SET micro_summary_json = ? WHERE id = ?")
+      .run(JSON.stringify(microSummary), report.id);
+    return { ...report, microSummary };
   }
 
   getThread(leagueId: string, purpose: string): string | null {
@@ -314,7 +329,8 @@ export class LocalStore {
       CREATE TABLE IF NOT EXISTS ai_reports (
         id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(league_id) ON DELETE CASCADE,
         kind TEXT NOT NULL, generated_at TEXT NOT NULL, snapshot_at TEXT NOT NULL,
-        invalidated INTEGER NOT NULL DEFAULT 0, payload_json TEXT NOT NULL
+        invalidated INTEGER NOT NULL DEFAULT 0, payload_json TEXT NOT NULL,
+        micro_summary_json TEXT
       );
       CREATE TABLE IF NOT EXISTS codex_threads (
         league_id TEXT NOT NULL REFERENCES leagues(league_id) ON DELETE CASCADE,
@@ -330,6 +346,21 @@ export class LocalStore {
       CREATE INDEX IF NOT EXISTS idx_snapshots_league ON league_snapshots(league_id, captured_at DESC);
       CREATE INDEX IF NOT EXISTS idx_reports_league ON ai_reports(league_id, generated_at DESC);
     `);
+    this.ensureColumn("ai_reports", "micro_summary_json", "TEXT");
+  }
+
+  private ensureColumn(
+    table: string,
+    column: string,
+    definition: string,
+  ): void {
+    const columns = this.database
+      .prepare(`PRAGMA table_info(${table})`)
+      .all() as Array<{ name: string }> | undefined;
+    if (!columns?.some((candidate) => candidate.name === column))
+      this.database.exec(
+        `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`,
+      );
   }
 }
 

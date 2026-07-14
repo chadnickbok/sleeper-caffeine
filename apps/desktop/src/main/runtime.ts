@@ -19,6 +19,8 @@ import {
 import { LocalMcpBridge } from "@sleeper-caffeine/mcp";
 import { CodexSupervisor } from "@sleeper-caffeine/codex-runtime";
 import {
+  MICRO_SUMMARY_OUTPUT_JSON_SCHEMA,
+  MicroSummaryOutputSchema,
   ReportPayloadSchema,
   REPORT_OUTPUT_JSON_SCHEMA,
   type AiReport,
@@ -30,10 +32,13 @@ import {
   type LeaguePreview,
   type PlayerView,
   type ReportKind,
+  type ReportPayload,
   type RuntimeEvent,
   type SavedLeague,
 } from "@sleeper-caffeine/ipc-contract";
 import { LocalStore } from "./store.js";
+
+const MICRO_SUMMARY_PROMPT_VERSION = "1";
 
 export class AppRuntime extends EventEmitter {
   readonly store: LocalStore;
@@ -191,7 +196,8 @@ export class AppRuntime extends EventEmitter {
     const dashboard = this.requireDashboard();
     const aiSettings = this.store.getAiSettings();
     const purpose = `report:${kind}`;
-    const result = await this.requireCodex().runTurn({
+    const codex = this.requireCodex();
+    const result = await codex.runTurn({
       threadId: this.store.getThread(dashboard.league.leagueId, purpose),
       model: aiSettings.model,
       effort: aiSettings.effort,
@@ -210,13 +216,50 @@ export class AppRuntime extends EventEmitter {
       );
     }
     const payload = ReportPayloadSchema.parse(parsed);
-    const report = this.store.saveReport({
+    let report = this.store.saveReport({
       leagueId: dashboard.league.leagueId,
       kind,
       snapshotAt: dashboard.capturedAt,
       payload,
     });
     this.send({ type: "bootstrap_changed" });
+
+    try {
+      const selectedModel = codex
+        .getStatus()
+        .availableModels.find((model) => model.model === aiSettings.model);
+      const microEffort = selectedModel?.supportedReasoningEfforts.some(
+        (candidate) => candidate.effort === "low",
+      )
+        ? "low"
+        : aiSettings.effort;
+      const microResult = await codex.runTurn({
+        threadId: result.threadId,
+        model: aiSettings.model,
+        effort: microEffort,
+        prompt: microSummaryPrompt(kind, payload),
+        outputSchema: MICRO_SUMMARY_OUTPUT_JSON_SCHEMA,
+      });
+      this.store.saveThread(
+        dashboard.league.leagueId,
+        purpose,
+        microResult.threadId,
+      );
+      const microOutput = MicroSummaryOutputSchema.parse(
+        JSON.parse(microResult.text),
+      );
+      report = this.store.saveMicroSummary(report, {
+        ...microOutput,
+        model: aiSettings.model,
+        promptVersion: MICRO_SUMMARY_PROMPT_VERSION,
+      });
+      this.send({ type: "bootstrap_changed" });
+    } catch (error) {
+      console.warn(
+        `Unable to distill the ${kind} report into a micro summary`,
+        error,
+      );
+    }
     return report;
   }
 
@@ -581,4 +624,28 @@ function reportPrompt(kind: ReportKind, dashboard: Dashboard): string {
       "Build a scoring- and roster-aware shortlist of draft targets. Account for my pick inventory, current roster construction, draft state, tier breaks, upside, and current news.",
   }[kind];
   return `League ID: ${dashboard.league.leagueId}\nMy user ID: ${dashboard.league.userId}\nMy roster ID: ${String(dashboard.league.rosterId)}\nSnapshot captured: ${dashboard.capturedAt}\n\n${task}\n\nCall the relevant Sleeper MCP tools first. Then use live web search for current player context. Return only JSON matching the supplied schema. Every material current-news claim should have a source entry; Sleeper-derived claims should be labeled sourceType sleeper. A search result is discovery, not a source: cite the actual page you relied on.`;
+}
+
+function microSummaryPrompt(kind: ReportKind, payload: ReportPayload): string {
+  const emphasis = {
+    team_analysis:
+      "Lead with the roster's strongest competitive advantage and its most important vulnerability.",
+    trade_suggestions:
+      "Lead with the clearest source of trade leverage and the roster need it should address.",
+    draft_candidates:
+      "Lead with the highest-priority position and the practical approach to the next pick.",
+  }[kind];
+  return `Distill the completed fantasy-football briefing below into card copy. This is an editorial condensation step, not a new analysis step.
+
+Use only the supplied briefing. Do not call tools, use web search, introduce new facts, or rely on conversation memory.
+${emphasis}
+
+Return only JSON matching the supplied schema:
+- headline: a conclusion-led headline; aim for 70-80 characters, with a hard limit of 100 characters
+- summary: one paragraph of at most two sentences and 220 characters; put the most important detail first because the card displays only the first three lines
+
+Prefer specific players or decisions when useful. Do not use Markdown, bullets, category labels, throat-clearing, or repeat the headline.
+
+Completed briefing:
+${JSON.stringify(payload)}`;
 }

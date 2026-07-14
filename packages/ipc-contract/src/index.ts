@@ -169,6 +169,18 @@ export const ReportPayloadSchema = z.object({
 });
 export type ReportPayload = z.infer<typeof ReportPayloadSchema>;
 
+export const MicroSummaryOutputSchema = z.object({
+  headline: z.string().min(1).max(100),
+  summary: z.string().min(1).max(220),
+});
+export type MicroSummaryOutput = z.infer<typeof MicroSummaryOutputSchema>;
+
+export const MicroSummarySchema = MicroSummaryOutputSchema.extend({
+  model: z.string().min(1),
+  promptVersion: z.string().min(1),
+});
+export type MicroSummary = z.infer<typeof MicroSummarySchema>;
+
 export const AiReportSchema = z.object({
   id: z.string(),
   leagueId: z.string(),
@@ -177,6 +189,7 @@ export const AiReportSchema = z.object({
   snapshotAt: z.string(),
   invalidated: z.boolean(),
   payload: ReportPayloadSchema,
+  microSummary: MicroSummarySchema.nullable(),
 });
 export type AiReport = z.infer<typeof AiReportSchema>;
 
@@ -339,5 +352,15 @@ export const REPORT_OUTPUT_JSON_SCHEMA = {
       },
     },
     caveats: { type: "array", items: { type: "string" } },
+  },
+} as const;
+
+export const MICRO_SUMMARY_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["headline", "summary"],
+  properties: {
+    headline: { type: "string", minLength: 1, maxLength: 100 },
+    summary: { type: "string", minLength: 1, maxLength: 220 },
   },
 } as const;
