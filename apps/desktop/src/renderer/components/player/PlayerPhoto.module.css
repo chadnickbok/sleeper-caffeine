@@ -1,0 +1,32 @@
+.root,
+.small {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, #29352e, #17201b);
+}
+.root {
+  width: 4.875rem;
+  height: 5.75rem;
+}
+.small {
+  width: 1.9375rem;
+  height: 1.9375rem;
+  border-radius: var(--radius-md);
+}
+.root img,
+.small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+.fallback {
+  display: grid;
+  place-items: center;
+  color: var(--color-action-bright);
+  font-size: var(--font-size-metadata);
+  font-weight: 800;
+}

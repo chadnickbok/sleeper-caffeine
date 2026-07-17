@@ -1,0 +1,16 @@
+.root {
+  width: 1.1875rem;
+  height: 1.1875rem;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.spinning {
+  animation: icon-spin 0.9s linear infinite;
+}
+
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

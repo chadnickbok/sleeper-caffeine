@@ -1,0 +1,326 @@
+.root {
+  min-height: 0;
+  flex: 1;
+}
+.root :global(.caffeine-thread-viewport) {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scroll-padding-bottom: 125px;
+}
+.root :global(.caffeine-load-history) {
+  align-self: center;
+  margin: 14px 0 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.025);
+  font:
+    10px DM Mono,
+    monospace;
+  cursor: pointer;
+}
+.root :global(.caffeine-load-history:disabled) {
+  opacity: 0.55;
+}
+.root :global(.conversation-empty) {
+  min-height: 380px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 28px;
+  text-align: center;
+}
+.root :global(.conversation-coffee) {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(54, 206, 211, 0.22);
+  border-radius: 14px;
+  color: var(--green);
+  background: rgba(54, 206, 211, 0.06);
+  font-size: 23px;
+}
+.root :global(.conversation-empty h3) {
+  margin: 16px 0 7px;
+  font-size: 19px;
+}
+.root :global(.conversation-empty p) {
+  max-width: 310px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.root :global(.conversation-suggestions) {
+  max-width: 325px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 18px;
+}
+.root :global(.conversation-suggestions button) {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: #a7b1a9;
+  background: #171e1a;
+  font-size: 10px;
+  cursor: pointer;
+}
+.root :global(.caffeine-message) {
+  position: relative;
+  margin: 15px 17px;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.root :global(.caffeine-message.user) {
+  max-width: 84%;
+  margin-left: auto;
+  padding: 11px 13px;
+  border-radius: 12px;
+  border-bottom-right-radius: 3px;
+  color: #07131f;
+  background: var(--green);
+  white-space: pre-wrap;
+}
+.root :global(.caffeine-message.assistant) {
+  padding: 14px 15px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  border-bottom-left-radius: 3px;
+  color: #b9c1bb;
+  background: rgba(23, 29, 26, 0.72);
+}
+.root :global(.assistant-message-mark) {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+  color: var(--green);
+  font:
+    10px DM Mono,
+    monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.root :global(.assistant-message-mark span) {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 9px rgba(54, 206, 211, 0.5);
+}
+.root :global(.caffeine-markdown > :first-child) {
+  margin-top: 0;
+}
+.root :global(.caffeine-markdown > :last-child) {
+  margin-bottom: 0;
+}
+.root :global(.caffeine-markdown p),
+.root :global(.caffeine-markdown ul),
+.root :global(.caffeine-markdown ol),
+.root :global(.caffeine-markdown blockquote),
+.root :global(.caffeine-markdown pre),
+.root :global(.caffeine-markdown table) {
+  margin: 0 0 11px;
+}
+.root :global(.caffeine-markdown h1),
+.root :global(.caffeine-markdown h2),
+.root :global(.caffeine-markdown h3),
+.root :global(.caffeine-markdown h4) {
+  margin: 17px 0 7px;
+  color: var(--ink);
+  line-height: 1.25;
+}
+.root :global(.caffeine-markdown h1) {
+  font-size: 19px;
+}
+.root :global(.caffeine-markdown h2) {
+  font-size: 16px;
+}
+.root :global(.caffeine-markdown h3),
+.root :global(.caffeine-markdown h4) {
+  font-size: 13px;
+}
+.root :global(.caffeine-markdown ul),
+.root :global(.caffeine-markdown ol) {
+  padding-left: 20px;
+}
+.root :global(.caffeine-markdown li + li) {
+  margin-top: 4px;
+}
+.root :global(.caffeine-markdown strong) {
+  color: #e3eae5;
+}
+.root :global(.caffeine-markdown a) {
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.root :global(.caffeine-markdown blockquote) {
+  padding-left: 11px;
+  border-left: 2px solid rgba(54, 206, 211, 0.4);
+  color: var(--muted);
+}
+.root :global(.caffeine-markdown code) {
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: #c9f2f3;
+  background: #091724;
+  font:
+    10px DM Mono,
+    monospace;
+}
+.root :global(.caffeine-markdown pre) {
+  overflow-x: auto;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #07131f;
+}
+.root :global(.caffeine-markdown pre code) {
+  padding: 0;
+  background: transparent;
+}
+.root :global(.caffeine-markdown table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+.root :global(.caffeine-markdown th),
+.root :global(.caffeine-markdown td) {
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.root :global(.assistant-thinking),
+.root :global(.assistant-error) {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  color: var(--faint);
+  font:
+    10px DM Mono,
+    monospace;
+}
+.root :global(.assistant-thinking i) {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 1s ease-in-out infinite;
+}
+.root :global(.assistant-error) {
+  color: #f0a765;
+}
+.root :global(.assistant-actions) {
+  display: flex;
+  margin-top: 7px;
+}
+.root :global(.assistant-actions button) {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  border: 0;
+  color: var(--faint);
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+.root :global(.assistant-actions svg) {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+}
+.root :global(.caffeine-scroll-bottom) {
+  position: sticky;
+  z-index: 2;
+  bottom: 113px;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink);
+  background: #10202d;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.root :global(.caffeine-thread-footer) {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  background: linear-gradient(transparent, #0b1925 17px);
+  padding-top: 17px;
+}
+.root :global(.caffeine-composer) {
+  position: relative;
+  margin: 0 15px 14px;
+  padding: 0;
+}
+.root :global(.caffeine-composer-input) {
+  width: 100%;
+  min-height: 76px;
+  resize: none;
+  padding: 12px 46px 12px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 11px;
+  outline: 0;
+  color: var(--ink);
+  background: #091724;
+  font:
+    12px/1.5 Inter,
+    sans-serif;
+}
+.root :global(.caffeine-composer-input:focus) {
+  border-color: rgba(54, 206, 211, 0.42);
+}
+.root :global(.caffeine-composer-send) {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 31px;
+  height: 31px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: #07131f;
+  background: var(--green);
+  cursor: pointer;
+}
+.root :global(.caffeine-composer-send:disabled) {
+  opacity: 0.35;
+}
+.root :global(.caffeine-composer-send svg) {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+.root :global(.drawer-login) {
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--line);
+}
+.root :global(.drawer-login p) {
+  color: var(--muted);
+  font-size: 11px;
+}

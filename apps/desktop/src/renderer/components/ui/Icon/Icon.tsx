@@ -1,4 +1,5 @@
 import type { ReactNode, SVGAttributes } from "react";
+import styles from "./Icon.module.css";
 
 const icons = {
   alert: (
@@ -101,7 +102,7 @@ export function Icon({
   return (
     <svg
       {...props}
-      className={["icon", spin ? "spinning" : "", className]
+      className={[styles.root, spin ? styles.spinning : "", className]
         .filter(Boolean)
         .join(" ")}
       viewBox="0 0 24 24"

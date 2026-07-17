@@ -1,0 +1,52 @@
+.page {
+  width: min(73.75rem, calc(100% - 3.375rem));
+  margin: 0 auto;
+  padding: 1.875rem 0 5rem;
+}
+.heading {
+  min-height: 5.6875rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-bottom: 1.6875rem;
+}
+.heading h1 {
+  margin: 0.375rem 0 0.3125rem;
+  font-size: 1.9375rem;
+  letter-spacing: -0.055em;
+}
+.heading p {
+  max-width: 41.875rem;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.6;
+}
+.eyebrow {
+  display: block;
+  color: var(--color-action-bright);
+  font: 500 var(--font-size-metadata) var(--font-family-mono);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.sectionTitle {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 0.8125rem;
+}
+.sectionTitle h2 {
+  margin: 0.1875rem 0 0;
+  font-size: 1rem;
+  letter-spacing: -0.035em;
+}
+.count {
+  min-width: 1.625rem;
+  padding: 0.1875rem 0.4375rem;
+  border-radius: 0.5625rem;
+  color: var(--color-text-secondary);
+  background: rgb(255 255 255 / 5%);
+  font: var(--font-size-metadata) var(--font-family-mono);
+  text-align: center;
+}

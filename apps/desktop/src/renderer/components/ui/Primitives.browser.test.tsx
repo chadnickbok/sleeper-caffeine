@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+import "../../test/browser-styles.js";
 import { Button } from "./Button/Button.js";
 
 test("shared buttons expose loading and disabled behavior", async () => {

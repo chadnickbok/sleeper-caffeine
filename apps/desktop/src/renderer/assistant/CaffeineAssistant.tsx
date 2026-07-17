@@ -16,7 +16,9 @@ import type {
 } from "@sleeper-caffeine/ipc-contract";
 import { useCallback, useMemo, useState } from "react";
 import { caffeineClient } from "../api/caffeine-client.js";
+import { Button } from "../components/ui/index.js";
 import { MarkdownText } from "./MarkdownText.js";
+import styles from "./CaffeineAssistant.module.css";
 
 type RunStatus = "running" | "complete" | "failed";
 
@@ -165,7 +167,7 @@ function CaffeineThread({
   onLogin(): void;
 }) {
   return (
-    <ThreadPrimitive.Root className="caffeine-thread">
+    <ThreadPrimitive.Root className={styles.root}>
       <ThreadPrimitive.Viewport className="caffeine-thread-viewport" autoScroll>
         {hasMore && (
           <button
@@ -191,9 +193,9 @@ function CaffeineThread({
           {signedOut ? (
             <div className="drawer-login">
               <p>Connect ChatGPT to use the conversational analyst.</p>
-              <button className="button primary" onClick={onLogin}>
+              <Button variant="primary" onClick={onLogin}>
                 Connect ChatGPT
-              </button>
+              </Button>
             </div>
           ) : (
             <Composer />

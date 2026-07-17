@@ -1,0 +1,160 @@
+.empty :global(.coffee-ball) {
+  position: relative;
+  width: 205px;
+  height: 205px;
+  display: grid;
+  place-items: center;
+}
+.empty :global(.football) {
+  position: relative;
+  z-index: 2;
+  width: 115px;
+  height: 76px;
+  border: 2px solid rgba(220, 255, 166, 0.7);
+  border-radius: 54% 46% 52% 48%;
+  transform: rotate(-25deg);
+  background: linear-gradient(145deg, #20bbc4, #087681);
+  box-shadow:
+    inset -12px -12px 24px rgba(30, 52, 8, 0.28),
+    0 18px 40px rgba(0, 0, 0, 0.25);
+}
+.empty :global(.football::after) {
+  content: "";
+  position: absolute;
+  left: 47px;
+  top: 14px;
+  width: 2px;
+  height: 46px;
+  background: rgba(33, 54, 15, 0.8);
+}
+.empty :global(.football i) {
+  position: absolute;
+  z-index: 2;
+  left: 39px;
+  width: 19px;
+  height: 2px;
+  background: #a9f4f2;
+}
+.empty :global(.football i:nth-child(1)) {
+  top: 22px;
+}
+.empty :global(.football i:nth-child(2)) {
+  top: 30px;
+}
+.empty :global(.football i:nth-child(3)) {
+  top: 38px;
+}
+.empty :global(.football i:nth-child(4)) {
+  top: 46px;
+}
+.empty :global(.football i:nth-child(5)) {
+  top: 54px;
+}
+.empty :global(.steam) {
+  position: absolute;
+  z-index: 1;
+  width: 29px;
+  height: 70px;
+  top: 0;
+  border-left: 2px solid rgba(54, 206, 211, 0.44);
+  border-radius: 50%;
+  filter: blur(0.4px);
+}
+.empty :global(.steam.one) {
+  left: 78px;
+  transform: rotate(-14deg);
+}
+.empty :global(.steam.two) {
+  right: 70px;
+  top: 8px;
+  transform: rotate(16deg) scale(0.8);
+}
+.empty :global(.orbit) {
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(54, 206, 211, 0.13);
+  border-radius: 50%;
+  transform: rotate(-18deg);
+}
+.empty :global(.orbit::after) {
+  content: "";
+  position: absolute;
+  inset: 22px;
+  border: 1px dashed rgba(54, 206, 211, 0.12);
+  border-radius: 50%;
+}
+.empty :global(.orbit b) {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border: 1px solid rgba(54, 206, 211, 0.18);
+  border-radius: 50%;
+  color: var(--green);
+  background: #172019;
+  font:
+    500 10px DM Mono,
+    monospace;
+}
+.empty :global(.orbit b:nth-child(1)) {
+  top: 13px;
+  right: 20px;
+}
+.empty :global(.orbit b:nth-child(2)) {
+  bottom: 5px;
+  left: 63px;
+}
+.empty :global(.orbit b:nth-child(3)) {
+  top: 75px;
+  left: -9px;
+}
+
+.empty {
+  height: calc(100vh - 61px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.empty :global(.coffee-ball) {
+  transform: scale(0.72);
+  margin-bottom: -18px;
+}
+.empty :global(h1) {
+  margin: 0 0 8px;
+  font-size: 31px;
+  letter-spacing: -0.055em;
+}
+.empty :global(p) {
+  max-width: 510px;
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+.launch {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #07131f;
+}
+.launch strong {
+  margin-top: 12px;
+  font-size: 16px;
+}
+.launch > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.launch img {
+  width: 8.25rem;
+  height: 8.25rem;
+  object-fit: contain;
+}

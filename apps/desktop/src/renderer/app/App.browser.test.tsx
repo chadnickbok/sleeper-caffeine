@@ -9,6 +9,7 @@ import {
 } from "../test/mock-caffeine-api.js";
 import { AppProviders } from "./AppProviders.js";
 import { queryClient } from "./query-client.js";
+import "../test/browser-styles.js";
 
 const preview: LeaguePreview = {
   leagueId: "289646328504385536",
