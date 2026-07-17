@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { z } from "zod/v4";
 import {
   IPC_CHANNELS,
@@ -14,6 +14,16 @@ import { createWindowOptions } from "./window-config.js";
 
 let mainWindow: BrowserWindow | null = null;
 let runtime: AppRuntime | null = null;
+const smokeTest = process.env["SLEEPER_CAFFEINE_SMOKE_TEST"] === "1";
+
+if (smokeTest) {
+  const smokeUserData = process.env["SLEEPER_CAFFEINE_SMOKE_USER_DATA"];
+  if (!smokeUserData)
+    throw new Error(
+      "SLEEPER_CAFFEINE_SMOKE_USER_DATA is required in smoke-test mode",
+    );
+  app.setPath("userData", resolve(smokeUserData));
+}
 
 function requireRuntime(): AppRuntime {
   if (!runtime) throw new Error("Sleeper Caffeine is still starting");
@@ -126,12 +136,14 @@ void app.whenReady().then(() => {
   );
   registerIpc();
   mainWindow = createWindow();
-  void runtime.start().catch((error: unknown) => {
-    console.error(
-      "Sleeper Caffeine background services failed to start",
-      error,
-    );
-  });
+  if (!smokeTest) {
+    void runtime.start().catch((error: unknown) => {
+      console.error(
+        "Sleeper Caffeine background services failed to start",
+        error,
+      );
+    });
+  }
 });
 
 app.on("activate", () => {

@@ -53,3 +53,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm --filter @sleeper-caffeine/desktop exec electron-builder --${{ matrix.target }} --dir
+      - if: runner.os != 'Linux'
+        run: pnpm --filter @sleeper-caffeine/desktop test:smoke:packaged
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm --filter @sleeper-caffeine/desktop test:smoke:packaged

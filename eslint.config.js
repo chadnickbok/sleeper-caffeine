@@ -39,6 +39,22 @@ export default tseslint.config(
     },
   },
   {
+    files: ["**/test/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        document: "readonly",
+        getComputedStyle: "readonly",
+        process: "readonly",
+      },
+      parserOptions: {
+        projectService: false,
+      },
+    },
+    rules: {
+      ...tseslint.configs.disableTypeChecked.rules,
+    },
+  },
+  {
     files: ["**/*.tsx"],
     plugins: {
       "jsx-a11y": jsxA11y,

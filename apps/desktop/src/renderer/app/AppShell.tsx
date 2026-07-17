@@ -77,9 +77,17 @@ export function AppShell({
   }, [activeLeagueId, page]);
 
   return (
-    <div className={styles.shell} data-platform={data.platform}>
+    <div
+      className={styles.shell}
+      data-platform={data.platform}
+      data-testid="app-shell"
+    >
       <aside className={styles.sidebar}>
-        <div className={styles.trafficSpace} aria-hidden="true" />
+        <div
+          className={styles.trafficSpace}
+          data-testid="traffic-space"
+          aria-hidden="true"
+        />
         <div className={styles.brand}>
           <img src={sleeperCaffeineMascot} alt="" aria-hidden="true" />
           <div>

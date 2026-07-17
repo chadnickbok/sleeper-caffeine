@@ -15,7 +15,18 @@ pnpm --filter @sleeper-caffeine/desktop storybook:build
 pnpm build
 ```
 
-GitHub Actions builds unpacked applications on native macOS, Windows, and Linux runners. This catches platform-specific native dependencies, paths, icons, and Electron packaging failures without publishing unsigned installers.
+GitHub Actions builds unpacked applications on native macOS, Windows, and Linux runners, then launches each packaged executable through Playwright's Electron driver. The smoke suite verifies packaged resources, preload IPC, local dashboard hydration, navigation, minimum window sizing, and platform chrome without using personal data or external services.
+
+Run the packaged smoke suite locally after building the unpacked application for your host platform:
+
+```bash
+pnpm --filter @sleeper-caffeine/desktop exec electron-builder --mac --dir
+pnpm --filter @sleeper-caffeine/desktop test:smoke:packaged
+```
+
+Replace `--mac` with `--win` or `--linux` on those native hosts. Linux requires a display server; CI runs the command under Xvfb.
+
+The suite creates a temporary `userData` directory with a synthetic league dashboard and launches the app with `SLEEPER_CAFFEINE_SMOKE_TEST=1`. That explicit test mode skips Sleeper, MCP, and Codex background startup while retaining the real packaged main process, SQLite store, preload script, IPC handlers, and renderer. The temporary directory is deleted after the app exits.
 
 ## Native smoke checklist
 

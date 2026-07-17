@@ -488,6 +488,7 @@ Exit criteria:
 - [x] Define and enforce minimum supported window dimensions.
 - [x] Add unsigned Windows and Linux package builds to CI or a documented release validation workflow.
 - [x] Run browser component tests at representative compact and full desktop viewports.
+- [x] Add a packaged Electron smoke suite for launch, preload IPC, navigation, and platform chrome.
 
 Exit criteria:
 
