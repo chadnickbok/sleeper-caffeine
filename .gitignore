@@ -4,6 +4,8 @@ out/
 release/
 coverage/
 storybook-static/
+.vitest-attachments/
+**/__screenshots__/
 .cache/
 .env
 .env.*

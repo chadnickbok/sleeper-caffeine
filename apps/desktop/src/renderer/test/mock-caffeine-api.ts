@@ -2,6 +2,7 @@ import type {
   Bootstrap,
   SleeperCaffeineApi,
 } from "@sleeper-caffeine/ipc-contract";
+import { EMPTY_CURRENT_WEEKLY_BRIEFS } from "@sleeper-caffeine/ipc-contract";
 
 export const emptyBootstrap: Bootstrap = {
   platform: "darwin",
@@ -28,6 +29,10 @@ export const emptyBootstrap: Bootstrap = {
     state: "running",
   },
   aiSettings: { model: "gpt-5.6-terra", effort: "low" },
+  activeLeagueWeek: null,
+  currentWeeklyPlan: null,
+  weeklyActions: [],
+  currentWeeklyBriefs: EMPTY_CURRENT_WEEKLY_BRIEFS,
 };
 
 export function createMockCaffeineApi(
@@ -42,6 +47,11 @@ export function createMockCaffeineApi(
     setActiveLeague: unsupported,
     refreshActiveLeague: unsupported,
     generateReport: unsupported,
+    loadWeeklyPlan: unsupported,
+    generateWeeklyPlan: unsupported,
+    loadWeeklyPhaseBrief: unsupported,
+    generateWeeklyPhaseBrief: unsupported,
+    updateWeeklyAction: unsupported,
     loadChatHistory: unsupported,
     sendChat: unsupported,
     loginCodex: () => Promise.resolve(),

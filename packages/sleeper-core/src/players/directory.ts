@@ -80,7 +80,9 @@ export function toPlayerSummary(
     status: player.status ?? null,
     injury_status: player.injury_status ?? null,
     depth_chart_order: player.depth_chart_order ?? null,
+    depth_chart_position: player.depth_chart_position ?? null,
     years_exp: player.years_exp ?? null,
     search_rank: player.search_rank ?? null,
+    number: player.number ?? null,
   };
 }

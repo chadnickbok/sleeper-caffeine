@@ -56,7 +56,9 @@ test("launches the packaged application with isolated local state", async () => 
         platform: process.platform,
         size: window.getSize(),
         windowButtonPosition:
-          process.platform === "darwin" ? window.getWindowButtonPosition() : null,
+          process.platform === "darwin"
+            ? window.getWindowButtonPosition()
+            : null,
         userData: app.getPath("userData"),
         visible: window.isVisible(),
         expectedUserData,
@@ -91,18 +93,63 @@ test("connects the packaged renderer to the real preload IPC bridge", async () =
 
   assert.ok(result.methods.includes("bootstrap"));
   assert.ok(result.methods.includes("refreshActiveLeague"));
+  assert.ok(result.methods.includes("generateWeeklyPlan"));
+  assert.ok(result.methods.includes("loadWeeklyPhaseBrief"));
+  assert.ok(result.methods.includes("generateWeeklyPhaseBrief"));
   assert.ok(result.methods.includes("onRuntimeEvent"));
   assert.equal(result.bootstrap.leagues.length, 1);
-  assert.equal(result.bootstrap.activeDashboard.league.leagueId, "smoke-league");
-  assert.equal(result.bootstrap.activeDashboard.league.teamName, "The Test Roasters");
+  assert.equal(
+    result.bootstrap.activeDashboard.league.leagueId,
+    "smoke-league",
+  );
+  assert.equal(
+    result.bootstrap.activeDashboard.league.teamName,
+    "The Test Roasters",
+  );
   assert.equal(result.bootstrap.platform, process.platform);
   assert.equal(result.bootstrap.mcp.state, "stopped");
   assert.equal(result.bootstrap.codex.state, "starting");
+  assert.deepEqual(result.bootstrap.currentWeeklyBriefs, {
+    wednesday: null,
+    thursday: null,
+    weekend: null,
+  });
+
+  const emptyBrief = await page.evaluate(() =>
+    globalThis.sleeperCaffeine.loadWeeklyPhaseBrief({
+      leagueId: "smoke-league",
+      season: "2026",
+      week: 1,
+      phase: "wednesday",
+    }),
+  );
+  assert.equal(emptyBrief, null);
+});
+
+test("migrates an existing packaged database through the weekly schema", () => {
+  const database = new DatabaseSync(
+    join(userDataDir, "sleeper-caffeine.sqlite"),
+    { readOnly: true },
+  );
+  const version = database.prepare("PRAGMA user_version").get().user_version;
+  const phaseTable = database
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'weekly_phase_briefs'",
+    )
+    .get();
+  database.close();
+  assert.equal(version, 3);
+  assert.equal(phaseTable.name, "weekly_phase_briefs");
 });
 
 test("navigates between packaged feature surfaces", async () => {
   await page.getByRole("button", { name: "Roster", exact: true }).click();
   await page.getByRole("heading", { name: "Roster room" }).waitFor();
+
+  await page.getByRole("button", { name: /Weekly plan/ }).click();
+  await page
+    .getByRole("heading", { name: "Run this week like a front office" })
+    .waitFor();
 
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("heading", { name: "Settings", exact: true }).waitFor();
@@ -128,13 +175,11 @@ test("applies platform-aware packaged window chrome", async () => {
     if (!shell || !trafficSpace || !topBar || !navButton)
       throw new Error("Application chrome was not rendered");
     return {
-      navRegion: getComputedStyle(navButton).getPropertyValue(
-        "-webkit-app-region",
-      ),
+      navRegion:
+        getComputedStyle(navButton).getPropertyValue("-webkit-app-region"),
       platform: shell.getAttribute("data-platform"),
-      topBarRegion: getComputedStyle(topBar).getPropertyValue(
-        "-webkit-app-region",
-      ),
+      topBarRegion:
+        getComputedStyle(topBar).getPropertyValue("-webkit-app-region"),
       trafficHeight: Number.parseFloat(getComputedStyle(trafficSpace).height),
     };
   });
@@ -161,19 +206,17 @@ async function findPackagedExecutable(root) {
   const executable = files.find((path) => {
     if (process.platform === "darwin")
       return path.endsWith(
-        join(
-          "Sleeper Caffeine.app",
-          "Contents",
-          "MacOS",
-          "Sleeper Caffeine",
-        ),
+        join("Sleeper Caffeine.app", "Contents", "MacOS", "Sleeper Caffeine"),
       );
     if (process.platform === "win32")
       return (
         dirname(path).endsWith("win-unpacked") &&
         path.endsWith("Sleeper Caffeine.exe")
       );
-    return dirname(path).endsWith("linux-unpacked") && path.endsWith("sleeper-caffeine");
+    return (
+      dirname(path).endsWith("linux-unpacked") &&
+      path.endsWith("sleeper-caffeine")
+    );
   });
   if (!executable)
     throw new Error(

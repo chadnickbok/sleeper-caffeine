@@ -3,6 +3,9 @@ import type {
   AiSettings,
   Bootstrap,
   ReportKind,
+  WeeklyActionStatus,
+  WeeklyPhaseBriefRequest,
+  WeeklyPlanRequest,
 } from "@sleeper-caffeine/ipc-contract";
 import { useCallback, useState } from "react";
 import { caffeineClient } from "./caffeine-client.js";
@@ -22,6 +25,9 @@ export interface CaffeinePendingState {
   switchLeague: boolean;
   refresh: boolean;
   chat: boolean;
+  weeklyPlan: WeeklyPlanRequest | null;
+  weeklyPhaseBrief: WeeklyPhaseBriefRequest | null;
+  weeklyAction: string | null;
 }
 
 export function useBootstrapQuery() {
@@ -102,6 +108,24 @@ export function useCaffeineCommands() {
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.bootstrap }),
   });
+  const weeklyPlanMutation = useMutation({
+    mutationKey: mutationKeys.weeklyPlan,
+    mutationFn: caffeineClient.generateWeeklyPlan,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.bootstrap }),
+  });
+  const weeklyPhaseBriefMutation = useMutation({
+    mutationKey: mutationKeys.weeklyPhaseBrief,
+    mutationFn: caffeineClient.generateWeeklyPhaseBrief,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.bootstrap }),
+  });
+  const weeklyActionMutation = useMutation({
+    mutationKey: mutationKeys.weeklyAction,
+    mutationFn: caffeineClient.updateWeeklyAction,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.bootstrap }),
+  });
 
   const run = useCallback(
     async <T>(operation: Promise<T>): Promise<T> => {
@@ -130,6 +154,22 @@ export function useCaffeineCommands() {
     toggleDraftPin: (playerId: string) =>
       run(pinMutation.mutateAsync(playerId)),
     sendChat: (message: string) => run(chatMutation.mutateAsync(message)),
+    generateWeeklyPlan: (input: WeeklyPlanRequest) =>
+      weeklyPlanMutation.mutateAsync(input),
+    generateWeeklyPhaseBrief: (input: WeeklyPhaseBriefRequest) =>
+      weeklyPhaseBriefMutation.mutateAsync(input),
+    updateWeeklyAction: (
+      actionId: string,
+      status: WeeklyActionStatus,
+      note?: string | null,
+    ) =>
+      run(
+        weeklyActionMutation.mutateAsync({
+          actionId,
+          status,
+          ...(note === undefined ? {} : { note }),
+        }),
+      ),
     setBootstrap: writeBootstrap,
     pending: {
       clear: clearMutation.isPending,
@@ -141,6 +181,15 @@ export function useCaffeineCommands() {
       switchLeague: switchLeagueMutation.isPending,
       refresh: refreshMutation.isPending,
       chat: chatMutation.isPending,
+      weeklyPlan: weeklyPlanMutation.isPending
+        ? weeklyPlanMutation.variables
+        : null,
+      weeklyPhaseBrief: weeklyPhaseBriefMutation.isPending
+        ? weeklyPhaseBriefMutation.variables
+        : null,
+      weeklyAction: weeklyActionMutation.isPending
+        ? weeklyActionMutation.variables.actionId
+        : null,
     } satisfies CaffeinePendingState,
   };
 }

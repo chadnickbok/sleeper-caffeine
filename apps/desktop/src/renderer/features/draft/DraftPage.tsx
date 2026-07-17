@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type {
   AiReport,
   CodexStatus,
@@ -12,7 +12,7 @@ import {
   PageHeading,
   SectionTitle,
 } from "../../components/layout/PageLayout.js";
-import { Button, Icon, Panel } from "../../components/ui/index.js";
+import { Badge, Button, Icon, Panel } from "../../components/ui/index.js";
 import { PlayerPhoto } from "../../components/player/PlayerPhoto.js";
 import {
   AiAction,
@@ -23,6 +23,11 @@ import {
   selectLivePlanRecommendations,
   selectVisibleDraftCandidates,
 } from "./candidate-selectors.js";
+import {
+  DRAFT_POLL_INTERVAL_MS,
+  selectDraftRoomSignals,
+  startDraftPolling,
+} from "./draft-signals.js";
 import styles from "./DraftPage.module.css";
 
 export function DraftPage({
@@ -51,6 +56,7 @@ export function DraftPage({
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(
     null,
   );
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const plan = report?.draftPlan ?? null;
   const activePlan =
     plan &&
@@ -76,6 +82,14 @@ export function DraftPage({
     query,
   });
   const nextPick = draft?.myUpcomingPickNumbers[0] ?? null;
+  const pollingEligible = Boolean(
+    draft && ["live", "pending"].includes(draft.status),
+  );
+  const pollingActive = autoRefresh && pollingEligible;
+  useEffect(() => {
+    if (!pollingActive) return;
+    return startDraftPolling(onRefresh);
+  }, [draft?.draftId, onRefresh, pollingActive]);
   const completedSelection = plan?.selectedPlayerId
     ? plan.recommendations.find(
         (item) => item.player.playerId === plan.selectedPlayerId,
@@ -130,171 +144,209 @@ export function DraftPage({
         title="Draft command"
         description="Live Sleeper picks drive the board. Candidate ranking is local; deeper intelligence is regenerated on demand."
         action={
-          <Button
-            variant="ghost"
-            leading={<Icon name="refresh" />}
-            onClick={onRefresh}
-          >
-            Refresh board
-          </Button>
+          <div className="draft-heading-actions">
+            <Button
+              variant="ghost"
+              leading={<Icon name="refresh" />}
+              onClick={onRefresh}
+            >
+              Refresh board
+            </Button>
+            <Button
+              variant={pollingActive ? "secondary" : "ghost"}
+              leading={<Icon name={pollingActive ? "pulse" : "clock"} />}
+              onClick={() => {
+                const next = !autoRefresh;
+                setAutoRefresh(next);
+                if (next) onRefresh();
+              }}
+              disabled={!pollingEligible}
+              aria-pressed={pollingActive}
+              title={
+                pollingEligible
+                  ? `Refresh Sleeper every ${String(DRAFT_POLL_INTERVAL_MS / 1000)} seconds without running AI`
+                  : "Auto-refresh is available while a draft room is open"
+              }
+            >
+              Auto-refresh {pollingActive ? "on" : "off"}
+            </Button>
+          </div>
         }
       />
       <DraftBoard dashboard={dashboard} />
       {draft && draft.status !== "unsupported" && (
         <>
-          <section className="draft-intelligence-section">
-            <SectionTitle
-              eyebrow="Live intelligence"
-              title={
-                nextPick
-                  ? `Your plan at #${String(nextPick)}`
-                  : "Your live draft plan"
-              }
-            />
-            <Panel className="draft-intelligence">
-              <div className="draft-intelligence-status">
-                <span>
-                  <i
-                    className={
-                      !activePlan || activePlan.status === "research_stale"
-                        ? "stale"
-                        : ""
-                    }
-                  />
-                  {planStatusLabel}
-                </span>
-                <small>
-                  {activePlan
-                    ? `Plan based on ${String(activePlan.basedOnPickCount)} picks`
-                    : `Live board has ${String(draft.picks.length)} of ${String(draft.totalPicks ?? "—")} picks`}
-                </small>
-              </div>
-              <div className="draft-intelligence-body">
-                <article className="draft-change-card">
-                  <div className="draft-card-kicker">
-                    {running
-                      ? "Researching"
-                      : activePlan
-                        ? "Caffeine recommendation"
-                        : plan?.status === "completed"
-                          ? "Last decision"
-                          : "Next decision"}
-                    <span>{draft.picks.length} picks made</span>
-                  </div>
-                  <h2>{intelligenceHeadline}</h2>
-                  <p>{intelligenceSummary}</p>
-                </article>
-                <div className="draft-decision-board">
-                  <div className="draft-decision-head">
-                    <div>
-                      <span>
-                        {activePlan ? "Caffeine Plan" : "Live Baseline"}
-                      </span>
-                      <strong>
-                        {activePlan
-                          ? "Researched options for your build"
-                          : "Available now · not yet researched"}
-                      </strong>
-                    </div>
-                    <small>
-                      {nextPick ? `AT #${String(nextPick)}` : "LIVE"}
-                    </small>
-                  </div>
-                  {activePlan
-                    ? livePlanRecommendations.slice(0, 3).map((item) => (
-                        <button
-                          className="draft-decision-row"
-                          key={item.player.playerId}
-                          onClick={() =>
-                            setExpandedCandidate(item.player.playerId)
-                          }
-                        >
-                          <span>{String(item.planRank).padStart(2, "0")}</span>
-                          <div>
-                            <strong>{item.player.name}</strong>
-                            <small>
-                              {item.player.position ?? "—"} ·{" "}
-                              {item.player.nflTeam ?? "FA"}
-                            </small>
-                          </div>
-                          <div>
-                            <em>{planRoleLabel(item.role)}</em>
-                            <small>{item.rationale}</small>
-                          </div>
-                          <i />
-                        </button>
-                      ))
-                    : draft.candidates.slice(0, 3).map((candidate) => (
-                        <button
-                          className="draft-decision-row"
-                          key={candidate.player.playerId}
-                          onClick={() =>
-                            setExpandedCandidate(candidate.player.playerId)
-                          }
-                        >
-                          <span>{String(candidate.rank).padStart(2, "0")}</span>
-                          <div>
-                            <strong>{candidate.player.name}</strong>
-                            <small>
-                              {candidate.player.position ?? "—"} ·{" "}
-                              {candidate.player.nflTeam ?? "FA"}
-                            </small>
-                          </div>
-                          <div>
-                            <em>Baseline</em>
-                            <small>{candidate.rationale}</small>
-                          </div>
-                          <i />
-                        </button>
-                      ))}
-                </div>
-                <aside className="draft-pick-action">
-                  <div>
-                    <span>Your next pick</span>
-                    <strong>{nextPick ? `#${String(nextPick)}` : "—"}</strong>
-                    {draft.currentPickNo && nextPick && (
-                      <small>
-                        {Math.max(0, nextPick - draft.currentPickNo)} selections
-                        away
-                      </small>
-                    )}
-                  </div>
-                  <p>
-                    {draft.myUpcomingPickNumbers.length > 1
-                      ? `Also own ${draft.myUpcomingPickNumbers
-                          .slice(1)
-                          .map((pick) => `#${String(pick)}`)
-                          .join(" · ")}`
-                      : "No later selections currently owned"}
-                  </p>
-                  <AiAction
-                    status={codex}
-                    running={running}
-                    hasReport={Boolean(activePlan)}
-                    onGenerate={() => onGenerate("draft_candidates")}
-                    onLogin={onLogin}
-                  />
+          <DraftLifecycleNotice dashboard={dashboard} plan={plan} />
+          <DraftSignalRail draft={draft} plan={plan} />
+          {draft.status !== "complete" && (
+            <section className="draft-intelligence-section">
+              <SectionTitle
+                eyebrow="Live intelligence"
+                title={
+                  nextPick
+                    ? `Your plan at #${String(nextPick)}`
+                    : "Your live draft plan"
+                }
+              />
+              <Panel className="draft-intelligence">
+                <div className="draft-intelligence-status">
+                  <span>
+                    <i
+                      className={
+                        !activePlan || activePlan.status === "research_stale"
+                          ? "stale"
+                          : ""
+                      }
+                    />
+                    {planStatusLabel}
+                  </span>
                   <small>
-                    Refreshes Sleeper first · researched and board-validated
+                    {activePlan
+                      ? `Plan based on ${String(activePlan.basedOnPickCount)} picks`
+                      : `Live board has ${String(draft.picks.length)} of ${String(draft.totalPicks ?? "—")} picks`}
                   </small>
-                </aside>
-              </div>
-            </Panel>
-          </section>
+                </div>
+                <div className="draft-intelligence-body">
+                  <article className="draft-change-card">
+                    <div className="draft-card-kicker">
+                      {running
+                        ? "Researching"
+                        : activePlan
+                          ? "Caffeine recommendation"
+                          : plan?.status === "completed"
+                            ? "Last decision"
+                            : "Next decision"}
+                      <span>{draft.picks.length} picks made</span>
+                    </div>
+                    <h2>{intelligenceHeadline}</h2>
+                    <p>{intelligenceSummary}</p>
+                  </article>
+                  <div className="draft-decision-board">
+                    <div className="draft-decision-head">
+                      <div>
+                        <span>
+                          {activePlan ? "Caffeine Plan" : "Live Baseline"}
+                        </span>
+                        <strong>
+                          {activePlan
+                            ? "Researched options for your build"
+                            : "Available now · not yet researched"}
+                        </strong>
+                      </div>
+                      <small>
+                        {nextPick ? `AT #${String(nextPick)}` : "LIVE"}
+                      </small>
+                    </div>
+                    {activePlan
+                      ? livePlanRecommendations.slice(0, 3).map((item) => (
+                          <button
+                            className="draft-decision-row"
+                            key={item.player.playerId}
+                            onClick={() =>
+                              setExpandedCandidate(item.player.playerId)
+                            }
+                          >
+                            <span>
+                              {String(item.planRank).padStart(2, "0")}
+                            </span>
+                            <div>
+                              <strong>{item.player.name}</strong>
+                              <small>
+                                {item.player.position ?? "—"} ·{" "}
+                                {item.player.nflTeam ?? "FA"}
+                              </small>
+                            </div>
+                            <div>
+                              <em>{planRoleLabel(item.role)}</em>
+                              <small>{item.rationale}</small>
+                            </div>
+                            <i />
+                          </button>
+                        ))
+                      : draft.candidates.slice(0, 3).map((candidate) => (
+                          <button
+                            className="draft-decision-row"
+                            key={candidate.player.playerId}
+                            onClick={() =>
+                              setExpandedCandidate(candidate.player.playerId)
+                            }
+                          >
+                            <span>
+                              {String(candidate.rank).padStart(2, "0")}
+                            </span>
+                            <div>
+                              <strong>{candidate.player.name}</strong>
+                              <small>
+                                {candidate.player.position ?? "—"} ·{" "}
+                                {candidate.player.nflTeam ?? "FA"}
+                              </small>
+                            </div>
+                            <div>
+                              <em>Baseline</em>
+                              <small>{candidate.rationale}</small>
+                            </div>
+                            <i />
+                          </button>
+                        ))}
+                  </div>
+                  <aside className="draft-pick-action">
+                    <div>
+                      <span>Your next pick</span>
+                      <strong>{nextPick ? `#${String(nextPick)}` : "—"}</strong>
+                      {draft.currentPickNo && nextPick && (
+                        <small>
+                          {Math.max(0, nextPick - draft.currentPickNo)}{" "}
+                          selections away
+                        </small>
+                      )}
+                    </div>
+                    <p>
+                      {draft.myUpcomingPickNumbers.length > 1
+                        ? `Also own ${draft.myUpcomingPickNumbers
+                            .slice(1)
+                            .map((pick) => `#${String(pick)}`)
+                            .join(" · ")}`
+                        : "No later selections currently owned"}
+                    </p>
+                    <AiAction
+                      status={codex}
+                      running={running}
+                      hasReport={Boolean(activePlan)}
+                      onGenerate={() => onGenerate("draft_candidates")}
+                      onLogin={onLogin}
+                    />
+                    <small>
+                      Refreshes Sleeper first · researched and board-validated
+                    </small>
+                  </aside>
+                </div>
+              </Panel>
+            </section>
+          )}
 
           <Panel className="candidate-board">
             <div className="candidate-board-head">
               <div>
                 <span>
-                  Live Baseline ·{" "}
+                  {draft.status === "complete"
+                    ? "Final board · undrafted research"
+                    : "Live Baseline"}{" "}
+                  {" · "}
                   {nextPick
                     ? `planning for pick #${String(nextPick)}`
-                    : "no owned pick remaining"}
+                    : draft.status === "complete"
+                      ? "draft complete"
+                      : "no owned pick remaining"}
                 </span>
-                <h2>Candidate board</h2>
+                <h2>
+                  {draft.status === "complete"
+                    ? "Research archive"
+                    : "Candidate board"}
+                </h2>
                 <p>
-                  Research-list players are guaranteed a look in the next
-                  Caffeine Plan without changing baseline rank.
+                  {draft.status === "complete"
+                    ? "Review undrafted targets or pin them for future research. The final draft plan stays unchanged."
+                    : "Pinned players are guaranteed a look in the next Caffeine Plan without changing baseline rank."}
                 </p>
               </div>
               <div className="candidate-controls">
@@ -348,13 +400,15 @@ export function DraftPage({
               ))}
               {visibleCandidates.length === 0 && (
                 <div className="candidate-empty">
-                  No matching available players.
+                  {candidateEmptyMessage(draft.status, query, position)}
                 </div>
               )}
             </div>
           </Panel>
 
-          {running && <GeneratingState title="Updating the decision board" />}
+          {running && draft.status !== "complete" && (
+            <GeneratingState title="Updating the decision board" />
+          )}
           {!running && report?.draftPlan && (
             <section className="draft-deep-briefing">
               <SectionTitle
@@ -372,6 +426,135 @@ export function DraftPage({
         </>
       )}
     </Page>
+  );
+}
+
+function DraftLifecycleNotice({
+  dashboard,
+  plan,
+}: {
+  dashboard: Dashboard;
+  plan: DraftPlan | null;
+}) {
+  const draft = dashboard.draft;
+  if (!draft) return null;
+
+  if (draft.status === "complete") {
+    const myPicks = draft.picks.filter(
+      (pick) => pick.rosterId === dashboard.league.rosterId,
+    );
+    const selected = plan?.selectedPlayerId
+      ? plan.recommendations.find(
+          (item) => item.player.playerId === plan.selectedPlayerId,
+        )
+      : null;
+    return (
+      <Panel className="draft-lifecycle complete">
+        <div className="draft-lifecycle-icon">
+          <Icon name="trophy" />
+        </div>
+        <div>
+          <span>Draft complete</span>
+          <h2>Your final board is preserved.</h2>
+          <p>
+            {selected
+              ? `${selected.player.name} closed the last researched decision. Review the plan and keep useful undrafted targets pinned for the season handoff.`
+              : "Review the completed board and research history. Undrafted targets remain available below without changing the final plan."}
+          </p>
+        </div>
+        <div className="draft-complete-picks">
+          <small>Your selections · {myPicks.length}</small>
+          <div>
+            {myPicks.slice(0, 6).map((pick) => (
+              <Badge key={pick.pickNo} tone="success">
+                #{pick.pickNo} · {pick.player?.name ?? "Unknown"}
+              </Badge>
+            ))}
+            {myPicks.length > 6 && (
+              <Badge tone="neutral">+{myPicks.length - 6} more</Badge>
+            )}
+          </div>
+        </div>
+      </Panel>
+    );
+  }
+
+  if (draft.status === "scheduled")
+    return (
+      <Panel className="draft-lifecycle scheduled">
+        <div className="draft-lifecycle-icon">
+          <Icon name="clock" />
+        </div>
+        <div>
+          <span>Before the room opens</span>
+          <h2>Research the board now; react when picks begin.</h2>
+          <p>
+            The deterministic baseline and Caffeine Plan can be prepared before
+            the clock. Auto-refresh becomes available once Sleeper opens the
+            room.
+          </p>
+        </div>
+        <Badge tone="info">
+          {draft.startTime
+            ? formatDraftStart(draft.startTime)
+            : "Start time not set"}
+        </Badge>
+      </Panel>
+    );
+
+  if (draft.status === "pending" && draft.picks.length === 0)
+    return (
+      <Panel className="draft-lifecycle pending">
+        <div className="draft-lifecycle-icon">
+          <Icon name="pulse" />
+        </div>
+        <div>
+          <span>Slow draft ready</span>
+          <h2>Sleeper has not recorded the first selection yet.</h2>
+          <p>
+            Leave auto-refresh on while this room is open. It only checks
+            Sleeper state; it never spends an AI turn or submits a pick.
+          </p>
+        </div>
+        <Badge tone="accent">Read-only polling available</Badge>
+      </Panel>
+    );
+
+  return null;
+}
+
+function DraftSignalRail({
+  draft,
+  plan,
+}: {
+  draft: NonNullable<Dashboard["draft"]>;
+  plan: DraftPlan | null;
+}) {
+  const signals = selectDraftRoomSignals(draft, plan);
+  return (
+    <section className="draft-signal-rail" aria-label="Live draft signals">
+      <Panel className="draft-signal board-signal">
+        <div>
+          <span>What changed</span>
+          <Badge tone={signals.board.tone}>{signals.board.label}</Badge>
+        </div>
+        <p>{signals.board.detail}</p>
+      </Panel>
+      <Panel className="draft-signal">
+        <div>
+          <span>Position signal</span>
+          <Badge tone={signals.position.tone}>{signals.position.label}</Badge>
+        </div>
+        <p>{signals.position.detail}</p>
+      </Panel>
+      <Panel className="draft-signal">
+        <div>
+          <span>{plan ? "Research tier" : "Value band"}</span>
+          <Badge tone={signals.tier.tone}>{signals.tier.label}</Badge>
+        </div>
+        <p>{signals.tier.detail}</p>
+      </Panel>
+    </section>
   );
 }
 
@@ -408,13 +591,13 @@ function DraftBoard({ dashboard }: { dashboard: Dashboard }) {
     <Panel className="draft-board">
       <div className="draft-board-head">
         <div>
-          <span className="live-dot" />
-          {draftStatusLabel(draft.status)} · {draft.picks.length} of{" "}
+          <span className={`live-dot ${draft.status}`} />
+          {draftStatusLabel(draft)} · {draft.picks.length} of{" "}
           {draft.totalPicks ?? "—"} picks
         </div>
         <span>
           Sleeper reports {draft.sourceStatus.replaceAll("_", " ")}
-          {draft.currentPickNo
+          {["live", "pending"].includes(draft.status) && draft.currentPickNo
             ? ` · Pick #${String(draft.currentPickNo)} on clock`
             : ""}
         </span>
@@ -548,13 +731,13 @@ function CandidateRow({
         onClick={onTogglePin}
         aria-pressed={candidate.pinned}
       >
-        {candidate.pinned ? "Researching" : "+ Research"}
+        {candidate.pinned ? "Pinned" : "+ Pin"}
       </button>
       {expanded && (
         <div className="candidate-rationale">
           {recommendation && (
             <div className="candidate-plan-detail">
-              <span>Caffeine rationale</span>
+              <span>Caffeine rationale · {recommendation.tier}</span>
               <strong>{recommendation.rationale}</strong>
               {recommendation.risks.length > 0 && (
                 <small>Risk: {recommendation.risks.join(" · ")}</small>
@@ -607,16 +790,43 @@ function planRoleLabel(value: DraftPlan["recommendations"][number]["role"]) {
         : "Avoid";
 }
 
-function draftStatusLabel(value: NonNullable<Dashboard["draft"]>["status"]) {
-  return value === "live"
+function draftStatusLabel(draft: NonNullable<Dashboard["draft"]>) {
+  return draft.status === "live"
     ? "Draft in progress"
-    : value === "scheduled"
+    : draft.status === "scheduled"
       ? "Draft scheduled"
-      : value === "complete"
+      : draft.status === "complete"
         ? "Draft complete"
-        : value === "pending"
-          ? "Slow draft waiting"
+        : draft.status === "pending"
+          ? draft.picks.length > 0
+            ? "Slow draft in progress"
+            : "Slow draft waiting"
           : "Draft view unavailable";
+}
+
+function candidateEmptyMessage(
+  status: NonNullable<Dashboard["draft"]>["status"],
+  query: string,
+  position: string,
+) {
+  if (query.trim() || position !== "ALL")
+    return "No available players match these filters.";
+  if (status === "scheduled")
+    return "Sleeper has not published an available-player pool for this draft yet. Refresh closer to the start.";
+  if (status === "complete")
+    return "No undrafted research targets remain in this snapshot.";
+  return "Sleeper has not returned any available candidates yet. Refresh the board to try again.";
+}
+
+function formatDraftStart(value: number) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Start time not set";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function draftCellClass(

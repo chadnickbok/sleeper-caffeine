@@ -1,12 +1,17 @@
-import { useState } from "react";
 import type {
   AiReport,
   CodexStatus,
   Dashboard,
+  LeagueWeek,
   PlayerView,
   ReportKind,
+  WeeklyAction,
+  WeeklyPlan,
 } from "@sleeper-caffeine/ipc-contract";
-import { REPORT_STALE_AFTER_MS } from "@sleeper-caffeine/ipc-contract";
+import {
+  REPORT_STALE_AFTER_MS,
+  supportsWeeklyManagement,
+} from "@sleeper-caffeine/ipc-contract";
 import {
   Avatar,
   Icon,
@@ -14,6 +19,8 @@ import {
   Panel,
   type IconName,
 } from "../../components/ui/index.js";
+import { Eyebrow, SectionTitle } from "../../components/layout/PageLayout.js";
+import { PlayerPhoto } from "../../components/player/PlayerPhoto.js";
 import type { AppPage } from "../../app/AppShell.js";
 import styles from "./FrontOffice.module.css";
 
@@ -22,6 +29,10 @@ export function FrontOffice({
   teamReport,
   tradeReport,
   draftReport,
+  leagueWeek,
+  weeklyPlan,
+  weeklyActions,
+  weeklyGenerating,
   codex,
   generating,
   onNavigate,
@@ -32,6 +43,10 @@ export function FrontOffice({
   teamReport: AiReport | null;
   tradeReport: AiReport | null;
   draftReport: AiReport | null;
+  leagueWeek: LeagueWeek | null;
+  weeklyPlan: WeeklyPlan | null;
+  weeklyActions: WeeklyAction[];
+  weeklyGenerating: boolean;
   codex: CodexStatus;
   generating: ReportKind | null;
   onNavigate(page: AppPage): void;
@@ -89,6 +104,14 @@ export function FrontOffice({
           title="Dive deeper into your league, roster, and draft position."
         />
         <div className={styles.reportGrid}>
+          <WeeklyTeaser
+            dashboard={dashboard}
+            leagueWeek={leagueWeek}
+            plan={weeklyPlan}
+            actions={weeklyActions}
+            running={weeklyGenerating}
+            onOpen={() => onNavigate("weekly")}
+          />
           <ReportTeaser
             kind="team_analysis"
             title="Team pulse"
@@ -173,6 +196,92 @@ export function FrontOffice({
         </Panel>
       </section>
     </div>
+  );
+}
+
+function WeeklyTeaser({
+  dashboard,
+  leagueWeek,
+  plan,
+  actions,
+  running,
+  onOpen,
+}: {
+  dashboard: Dashboard;
+  leagueWeek: LeagueWeek | null;
+  plan: WeeklyPlan | null;
+  actions: WeeklyAction[];
+  running: boolean;
+  onOpen(): void;
+}) {
+  const unsupported = !supportsWeeklyManagement(dashboard.leagueStatus);
+  const building = running && !unsupported;
+  const pending = actions.filter(
+    (action) =>
+      action.planId === plan?.id &&
+      ["pending", "observed_in_sleeper"].includes(action.status),
+  ).length;
+  const summary = plan?.microSummary;
+  const changed = leagueWeek?.planStatus === "data_changed";
+  const stale = leagueWeek?.planStatus === "research_stale";
+  const changeCount = leagueWeek?.meaningfulChanges.length ?? 0;
+  const headline = building
+    ? "Caffeine is building your weekly plan"
+    : unsupported
+      ? "Weekly management starts in season"
+      : (summary?.headline ?? `Build your Week ${String(dashboard.week)} plan`);
+  const body = building
+    ? "Reading the league, researching a focused player cohort, and building the waiver contingencies."
+    : unsupported
+      ? "Draft research stays active now; the Tuesday command center will unlock with regular-season data."
+      : (summary?.summary ??
+        "Set your competitive lane, waiver order, roster churn, and one market move from a single evidence-backed brief.");
+  const freshness = building
+    ? "Building now"
+    : changed
+      ? `${String(changeCount)} material change${changeCount === 1 ? "" : "s"}`
+      : stale
+        ? `Research expired ${relativeTime(plan?.researchFreshThrough ?? "")}`
+        : plan
+          ? `Updated ${relativeTime(plan.generatedAt)}`
+          : unsupported
+            ? "Preseason"
+            : "Ready to build";
+
+  return (
+    <article className={styles.reportCard} data-report-kind="weekly_plan">
+      <div className={styles.reportIcon}>
+        <Icon name="spark" />
+      </div>
+      <div className={styles.reportContent}>
+        <div>
+          <div className={styles.reportMeta}>
+            <span>Weekly plan</span>
+            <i />
+            <small className={stale || changed ? styles.stale : undefined}>
+              {freshness}
+            </small>
+          </div>
+          <h3>{headline}</h3>
+          <p>{body}</p>
+        </div>
+        <button className={styles.textAction} onClick={onOpen}>
+          {unsupported
+            ? "Open weekly room"
+            : changed
+              ? "Review changes"
+              : plan
+                ? `Open plan · ${String(pending)} open`
+                : "Build my plan"}{" "}
+          <Icon name="arrow" />
+        </button>
+      </div>
+      {plan?.microSummary && (
+        <span className={styles.laneBadge}>
+          {plan.microSummary.competitiveLane}
+        </span>
+      )}
+    </article>
   );
 }
 
@@ -263,30 +372,6 @@ function ReportTeaser({
   );
 }
 
-function SectionTitle({
-  eyebrow,
-  title,
-  trailing,
-}: {
-  eyebrow?: string;
-  title: string;
-  trailing?: React.ReactNode;
-}) {
-  return (
-    <div className={styles.sectionTitle}>
-      <div>
-        {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
-        <h2>{title}</h2>
-      </div>
-      {trailing}
-    </div>
-  );
-}
-
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return <span className={styles.eyebrow}>{children}</span>;
-}
-
 function Metric({
   label,
   value,
@@ -307,7 +392,7 @@ function Metric({
 function PlayerRow({ player }: { player: PlayerView }) {
   return (
     <div className={styles.playerRow}>
-      <PlayerPhoto player={player} />
+      <PlayerPhoto player={player} small />
       <span className={styles.slot}>
         {player.rosterSlot ?? player.position}
       </span>
@@ -319,23 +404,6 @@ function PlayerRow({ player }: { player: PlayerView }) {
         </small>
       </span>
     </div>
-  );
-}
-
-function PlayerPhoto({ player }: { player: PlayerView }) {
-  const [failed, setFailed] = useState(false);
-  if (failed || player.playerId === "0")
-    return (
-      <span className={styles.playerFallback}>{initials(player.name)}</span>
-    );
-  return (
-    <span className={styles.playerPhoto}>
-      <img
-        src={`https://sleepercdn.com/content/nfl/players/${player.playerId}.jpg`}
-        alt=""
-        onError={() => setFailed(true)}
-      />
-    </span>
   );
 }
 
@@ -413,17 +481,6 @@ function MatchupPreview({
 
 function avatarUrl(value: string | null): string | null {
   return value ? `https://sleepercdn.com/avatars/thumbs/${value}` : null;
-}
-
-function initials(name: string): string {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
-      .join("") || "?"
-  );
 }
 
 function relativeTime(value: string): string {

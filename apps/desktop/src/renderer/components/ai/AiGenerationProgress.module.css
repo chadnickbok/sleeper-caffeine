@@ -1,0 +1,143 @@
+.root {
+  min-height: 18.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3.125rem;
+  padding: 3.125rem;
+  background:
+    radial-gradient(
+      circle at 25% 50%,
+      color-mix(in srgb, var(--color-action-bright) 8%, transparent),
+      transparent 30%
+    ),
+    var(--color-surface-panel);
+}
+
+.copy > small {
+  color: var(--color-action-bright);
+  font: var(--font-size-metadata) var(--font-family-mono);
+  text-transform: uppercase;
+}
+
+.copy > h2 {
+  margin: 0.4375rem 0;
+  font-size: 1.5rem;
+}
+
+.copy > p {
+  max-width: 30rem;
+  margin-block: 1em;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: 1.6;
+}
+
+.radar {
+  position: relative;
+  width: 8.125rem;
+  height: 8.125rem;
+  flex: 0 0 auto;
+  border: 1px solid
+    color-mix(in srgb, var(--color-action-bright) 20%, transparent);
+  border-radius: 50%;
+}
+
+.radar::before,
+.radar::after {
+  position: absolute;
+  border: 1px solid
+    color-mix(in srgb, var(--color-action-bright) 12%, transparent);
+  border-radius: 50%;
+  content: "";
+}
+
+.radar::before {
+  inset: 1.5625rem;
+}
+
+.radar::after {
+  inset: 3.125rem;
+  background: var(--color-action-bright);
+}
+
+.radar span {
+  position: absolute;
+  background: color-mix(in srgb, var(--color-action-bright) 12%, transparent);
+}
+
+.radar span:first-child {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.radar span:nth-child(2) {
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.radar i {
+  position: absolute;
+  inset: 50%;
+  width: 3.75rem;
+  height: 1px;
+  background: linear-gradient(90deg, var(--color-action-bright), transparent);
+  transform-origin: left;
+  animation: radar 2s linear infinite;
+}
+
+.stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: 0;
+  margin: var(--space-5) 0 0;
+  list-style: none;
+}
+
+.stages li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-tertiary);
+  font: var(--font-size-metadata) var(--font-family-mono);
+}
+
+.stages li > span {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.stages .active {
+  color: var(--color-action-bright);
+}
+
+.stages .complete {
+  color: var(--color-status-success);
+}
+
+@keyframes radar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 68rem) {
+  .root {
+    gap: var(--space-6);
+    padding: var(--space-8);
+  }
+}
+
+@media (max-width: 54rem) {
+  .root {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -11,6 +11,8 @@
       "wins": 2,
       "losses": 0,
       "ties": 0,
+      "fpts": 220,
+      "fpts_decimal": 35,
       "waiver_position": 1,
       "waiver_budget_used": 10
     }
@@ -27,6 +29,8 @@
       "wins": 1,
       "losses": 1,
       "ties": 0,
+      "fpts": 180,
+      "fpts_decimal": 10,
       "waiver_position": 2,
       "waiver_budget_used": 0
     }

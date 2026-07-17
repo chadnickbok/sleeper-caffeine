@@ -153,8 +153,7 @@
   color: var(--color-action-bright);
   content: "•";
 }
-.actions,
-.sources {
+.actions {
   margin-top: 0.75rem;
   padding: 1.4375rem;
 }
@@ -194,111 +193,6 @@
   font-size: var(--font-size-metadata);
   line-height: 1.55;
 }
-.sources {
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-panel);
-}
-.sources summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  cursor: pointer;
-}
-.sources summary > span {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-}
-.sources summary small {
-  color: var(--color-action-bright);
-  font: var(--font-size-metadata) var(--font-family-mono);
-  text-transform: uppercase;
-}
-.sources summary em {
-  color: var(--color-text-tertiary);
-  font: var(--font-size-metadata) var(--font-family-mono);
-  font-style: normal;
-}
-.sources summary svg {
-  width: 0.875rem;
-}
-.sourceContent {
-  margin-top: var(--space-4);
-}
-.source {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 3rem 1fr 1.125rem;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 0.125rem;
-  border: 0;
-  border-top: 1px solid var(--color-border-subtle);
-  color: inherit;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-.source:disabled {
-  cursor: default;
-}
-.source > div {
-  display: flex;
-  flex-direction: column;
-}
-.source strong,
-.source p {
-  font-size: var(--font-size-metadata);
-}
-.source p {
-  margin: 0.1875rem 0 0;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-}
-.source > svg {
-  width: 0.8125rem;
-  color: var(--color-text-tertiary);
-}
-.sourceType {
-  padding: 0.1875rem 0.3125rem;
-  border-radius: var(--radius-sm);
-  font: 500 var(--font-size-metadata) var(--font-family-mono);
-  text-align: center;
-  text-transform: uppercase;
-}
-.sleeper {
-  color: var(--color-action-bright);
-  background: rgb(54 206 211 / 8%);
-}
-.web {
-  color: #c4b9ff;
-  background: rgb(155 135 255 / 10%);
-}
-.caveats {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  margin-top: var(--space-4);
-  padding: 0.875rem;
-  border-radius: var(--radius-md);
-  background: rgb(255 255 255 / 3%);
-}
-.caveats strong {
-  margin-bottom: 0.1875rem;
-  font: 500 var(--font-size-metadata) var(--font-family-mono);
-  text-transform: uppercase;
-}
-.caveats span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-metadata);
-}
-.caveats span::before {
-  margin-right: 0.4375rem;
-  color: var(--color-text-tertiary);
-  content: "—";
-}
-.generating,
 .empty {
   min-height: 18.75rem;
   display: flex;
@@ -309,73 +203,6 @@
   background:
     radial-gradient(circle at 25% 50%, rgb(54 206 211 / 8%), transparent 30%),
     var(--color-surface-panel);
-}
-.generating small {
-  color: var(--color-action-bright);
-  font: var(--font-size-metadata) var(--font-family-mono);
-  text-transform: uppercase;
-}
-.generating h2 {
-  margin: 0.4375rem 0;
-  font-size: 1.5rem;
-}
-.generating p {
-  max-width: 30rem;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-body-sm);
-  line-height: 1.6;
-}
-.radar {
-  position: relative;
-  width: 8.125rem;
-  height: 8.125rem;
-  flex: 0 0 auto;
-  border: 1px solid rgb(54 206 211 / 20%);
-  border-radius: 50%;
-}
-.radar::before,
-.radar::after {
-  position: absolute;
-  border: 1px solid rgb(54 206 211 / 12%);
-  border-radius: 50%;
-  content: "";
-}
-.radar::before {
-  inset: 1.5625rem;
-}
-.radar::after {
-  inset: 3.125rem;
-  background: var(--color-action-bright);
-}
-.radar span {
-  position: absolute;
-  background: rgb(54 206 211 / 12%);
-}
-.radar span:first-child {
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 1px;
-}
-.radar span:nth-child(2) {
-  top: 50%;
-  right: 0;
-  left: 0;
-  height: 1px;
-}
-.radar i {
-  position: absolute;
-  inset: 50%;
-  width: 3.75rem;
-  height: 1px;
-  background: linear-gradient(90deg, var(--color-action-bright), transparent);
-  transform-origin: left;
-  animation: radar 2s linear infinite;
-}
-@keyframes radar {
-  to {
-    transform: rotate(360deg);
-  }
 }
 .empty {
   flex-direction: column;
@@ -420,26 +247,11 @@
   .cardGrid {
     grid-template-columns: 1fr;
   }
-
-  .generating {
-    gap: var(--space-6);
-    padding: var(--space-8);
-  }
 }
 
 @media (max-width: 54rem) {
   .lead,
-  .actions,
-  .sources {
+  .actions {
     padding: var(--space-4);
-  }
-
-  .generating {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .sources summary em {
-    display: none;
   }
 }

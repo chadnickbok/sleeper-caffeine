@@ -1,5 +1,3 @@
-import type { PlayerSummary } from "../players/schemas.js";
-import type { Transaction } from "../sleeper/types.js";
 import type { TradeContextInput } from "./contracts.js";
 import {
   cacheMetadata,
@@ -8,6 +6,7 @@ import {
   rosterView,
 } from "./common.js";
 import { resolveTeam } from "./identity.js";
+import { normalizeTransaction } from "./transaction-normalization.js";
 import type { DomainDependencies, DomainResult, ToolWarning } from "./types.js";
 
 export async function getTradeContext(
@@ -63,7 +62,7 @@ export async function getTradeContext(
       transactions: transactionGroups.map(({ week, transactions }) => ({
         week,
         transactions: transactions.map((transaction) =>
-          summarizeTransaction(transaction, directory.players),
+          normalizeTransaction(transaction, directory.players),
         ),
       })),
       drafts: drafts.map((draft) => ({
@@ -77,29 +76,5 @@ export async function getTradeContext(
         metadata: draft.metadata ?? null,
       })),
     },
-  };
-}
-
-function summarizeTransaction(
-  transaction: Transaction,
-  players: ReadonlyMap<string, PlayerSummary>,
-) {
-  const joinRecord = (record: Record<string, number> | null | undefined) =>
-    Object.entries(record ?? {}).map(([playerId, rosterId]) => ({
-      roster_id: rosterId,
-      player: players.get(playerId) ?? { player_id: playerId, name: playerId },
-    }));
-
-  return {
-    transaction_id: transaction.transaction_id,
-    type: transaction.type,
-    status: transaction.status,
-    created: transaction.created ?? null,
-    status_updated: transaction.status_updated ?? null,
-    roster_ids: transaction.roster_ids,
-    adds: joinRecord(transaction.adds),
-    drops: joinRecord(transaction.drops),
-    draft_picks: transaction.draft_picks,
-    waiver_budget: transaction.waiver_budget,
   };
 }

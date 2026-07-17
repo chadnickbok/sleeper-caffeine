@@ -11,6 +11,9 @@
   --palette-slate-500: #687586;
   --palette-cyan-400: #36ced3;
   --palette-cyan-500: #03adba;
+  --palette-blue-400: #6ebcf4;
+  --palette-green-400: #69d69b;
+  --palette-amber-400: #ffae6d;
   --palette-purple-400: #9b87ff;
   --palette-red-400: #ff796f;
 
@@ -24,8 +27,26 @@
   --color-border-subtle: rgba(54, 206, 211, 0.12);
   --color-action-primary: var(--palette-cyan-500);
   --color-action-bright: var(--palette-cyan-400);
+  --color-status-info: var(--palette-blue-400);
+  --color-status-success: var(--palette-green-400);
+  --color-status-warning: var(--palette-amber-400);
   --color-status-danger: var(--palette-red-400);
   --color-status-accent: var(--palette-purple-400);
+  --color-status-info-subtle: color-mix(
+    in srgb,
+    var(--color-status-info) 10%,
+    transparent
+  );
+  --color-status-success-subtle: color-mix(
+    in srgb,
+    var(--color-status-success) 10%,
+    transparent
+  );
+  --color-status-warning-subtle: color-mix(
+    in srgb,
+    var(--color-status-warning) 10%,
+    transparent
+  );
   --color-focus-ring: rgba(54, 206, 211, 0.58);
 
   --font-family-body: Manrope, ui-sans-serif, system-ui, sans-serif;

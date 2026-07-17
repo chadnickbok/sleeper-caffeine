@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import {
+  getWeeklyContext,
   PlayerCache,
   PlayerDirectory,
   SleeperApi,
@@ -16,6 +17,7 @@ import {
   type SleeperUser,
   type ToolWarning,
   type TradedPick,
+  type WeeklyContextData,
 } from "@sleeper-caffeine/core";
 import { LocalMcpBridge } from "@sleeper-caffeine/mcp";
 import { CodexSupervisor } from "@sleeper-caffeine/codex-runtime";
@@ -27,12 +29,22 @@ import {
   MicroSummaryOutputSchema,
   ReportPayloadSchema,
   REPORT_OUTPUT_JSON_SCHEMA,
+  supportsWeeklyManagement,
+  ThursdayLineupOutputSchema,
+  TUESDAY_PLAN_OUTPUT_JSON_SCHEMA,
+  TuesdayPlanOutputSchema,
+  WEEKLY_PHASE_OUTPUT_JSON_SCHEMAS,
+  WeekendCheckOutputSchema,
+  WeeklyPhaseBriefRequestSchema,
+  WeeklyPlanRequestSchema,
+  WeeklyPlanSummarySchema,
   type AiReport,
   type AiSettings,
   type Bootstrap,
   type ChatHistoryCursor,
   type ChatHistoryPage,
   type ChatMessage,
+  type CurrentWeeklyBriefs,
   type Dashboard,
   type DraftView,
   type LeaguePreview,
@@ -41,6 +53,18 @@ import {
   type ReportPayload,
   type RuntimeEvent,
   type SavedLeague,
+  type ThursdayLineupOutput,
+  type TuesdayPlanOutput,
+  type WatchlistEntry,
+  type WeekendCheckOutput,
+  type WeeklyAction,
+  type WeeklyActionUpdate,
+  type WeeklyPhaseBrief,
+  type WeeklyPhaseBriefKey,
+  type WeeklyPhaseBriefRequest,
+  type WeeklyPlan,
+  type WeeklyPlanBundle,
+  type WeeklyPlanRequest,
 } from "@sleeper-caffeine/ipc-contract";
 import { LocalStore } from "./store.js";
 import { resolveAppPaths } from "./app-paths.js";
@@ -50,8 +74,39 @@ import {
   draftPlanInputHash,
   reconcileDraftPlan,
 } from "./draft-plan.js";
+import { buildDraftSeasonHandoff } from "./draft-season-handoff.js";
+import {
+  buildTuesdayWatchlistEntries,
+  buildWeeklyPlan,
+  deriveWeeklyPlanSummary,
+  deriveWeeklyChanges,
+  reconcileWeeklyPlan,
+  selectTuesdayResearchCohort,
+  sleeperEventsFromContext,
+  weeklyContextHash,
+  weeklyPhaseForDate,
+} from "./weekly-plan.js";
+import {
+  buildWednesdayAftermath,
+  buildWeeklyPhaseBrief,
+  currentLegalLineup,
+  weeklyPhaseInputHash,
+} from "./weekly-phase.js";
 
 const MICRO_SUMMARY_PROMPT_VERSION = "1";
+const WeeklyPlanEditorialSummarySchema = WeeklyPlanSummarySchema.pick({
+  headline: true,
+  summary: true,
+});
+const WEEKLY_SUMMARY_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["headline", "summary"],
+  properties: {
+    headline: { type: "string" },
+    summary: { type: "string" },
+  },
+} as const;
 
 export class AppRuntime extends EventEmitter {
   readonly store: LocalStore;
@@ -110,6 +165,13 @@ export class AppRuntime extends EventEmitter {
     const activeDashboard = active
       ? this.store.getDashboard(active.leagueId)
       : null;
+    const weeklyBundle = activeDashboard
+      ? this.store.getWeeklyPlanBundle({
+          leagueId: activeDashboard.league.leagueId,
+          season: activeDashboard.league.season,
+          week: activeDashboard.week,
+        })
+      : null;
     const reports = active ? this.store.getReports(active.leagueId) : [];
     const chatHistory = active
       ? this.store.listChatMessages(active.leagueId)
@@ -144,6 +206,16 @@ export class AppRuntime extends EventEmitter {
       },
       mcp: this.mcp.getStatus(),
       aiSettings: this.store.getAiSettings(),
+      activeLeagueWeek: weeklyBundle?.leagueWeek ?? null,
+      currentWeeklyPlan: weeklyBundle?.plan ?? null,
+      weeklyActions: weeklyBundle?.actions ?? [],
+      currentWeeklyBriefs: activeDashboard
+        ? this.store.getCurrentWeeklyBriefs({
+            leagueId: activeDashboard.league.leagueId,
+            season: activeDashboard.league.season,
+            week: activeDashboard.week,
+          })
+        : { wednesday: null, thursday: null, weekend: null },
     };
   }
 
@@ -241,6 +313,8 @@ export class AppRuntime extends EventEmitter {
     if (!saved) throw new Error("Add a Sleeper league before refreshing");
     const { dashboard, raw } = await this.buildDashboard(saved);
     this.store.saveDashboard(dashboard, raw);
+    this.seedDraftSeasonHandoff(dashboard);
+    await this.refreshWeeklyContext(saved, dashboard);
     this.send({ type: "bootstrap_changed" });
     return this.bootstrap();
   }
@@ -314,6 +388,418 @@ export class AppRuntime extends EventEmitter {
       );
     }
     return report;
+  }
+
+  loadWeeklyPlan(input: {
+    leagueId: string;
+    season: string;
+    week: number;
+  }): WeeklyPlanBundle {
+    const bundle = this.store.getWeeklyPlanBundle(input);
+    if (!bundle)
+      throw new Error("Refresh this league before opening its weekly plan");
+    return bundle;
+  }
+
+  async generateWeeklyPlan(
+    input: WeeklyPlanRequest,
+  ): Promise<WeeklyPlanBundle> {
+    const request = WeeklyPlanRequestSchema.parse(input);
+    const dashboard = this.requireDashboard();
+    if (
+      dashboard.league.leagueId !== request.leagueId ||
+      dashboard.league.season !== request.season ||
+      dashboard.week !== request.week
+    )
+      throw new Error(
+        "The active league or week changed. Refresh before building this plan.",
+      );
+    if (!supportsWeeklyManagement(dashboard.leagueStatus))
+      throw new Error(
+        "Weekly plans activate when Sleeper marks this league in season. Draft Room remains available now.",
+      );
+    const storedContext = this.store.getWeeklyContext(request);
+    if (!storedContext?.context || !storedContext.contextHash)
+      throw new Error("Refresh Sleeper before building the weekly plan");
+    const context = storedContext.context as WeeklyContextData;
+    const aiSettings = this.store.getAiSettings();
+    const codex = this.requireCodex();
+    const previousBundle = this.store.getWeeklyPlanBundle(request);
+    const purpose = `weekly:${request.season}:${String(request.week)}`;
+    this.send({
+      type: "weekly_plan_started",
+      key: request,
+      mode: request.mode,
+    });
+    try {
+      this.send({
+        type: "weekly_plan_progress",
+        key: request,
+        stage: "reading_league",
+      });
+      const watchlist = this.store.listWatchlistEntries(request.leagueId);
+      const result = await codex.runTurn({
+        threadId: this.store.getThread(request.leagueId, purpose),
+        model: aiSettings.model,
+        effort: aiSettings.effort,
+        prompt: weeklyPlanPrompt({
+          request,
+          context,
+          previousPlan: previousBundle?.plan ?? null,
+          previousActions: this.store.listWeeklyActionsForWeek(request),
+          watchlist,
+        }),
+        outputSchema: TUESDAY_PLAN_OUTPUT_JSON_SCHEMA,
+      });
+      this.store.saveThread(request.leagueId, purpose, result.threadId);
+      this.send({
+        type: "weekly_plan_progress",
+        key: request,
+        stage: "building_plan",
+      });
+
+      let output;
+      try {
+        output = TuesdayPlanOutputSchema.parse(JSON.parse(result.text));
+      } catch (error) {
+        console.warn("Invalid structured Tuesday plan", error);
+        throw new Error(
+          "Codex returned a weekly plan that did not match the decision format. Try regenerating it.",
+        );
+      }
+      const generatedAt = new Date().toISOString();
+      const built = buildWeeklyPlan({
+        key: request,
+        context,
+        output,
+        snapshotId:
+          this.store.getLatestSnapshotId(request.leagueId) ??
+          storedContext.snapshotAt ??
+          dashboard.capturedAt,
+        inputHash: storedContext.contextHash,
+        version: this.store.getNextWeeklyPlanVersion(request),
+        model: aiSettings.model,
+        reasoningEffort: aiSettings.effort,
+        generatedAt,
+      });
+      let bundle = this.store.saveWeeklyPlan(
+        built.plan,
+        built.actions,
+        built.evidence,
+      );
+      for (const entry of buildTuesdayWatchlistEntries({
+        key: request,
+        output,
+        generatedAt,
+      }))
+        this.store.upsertGeneratedWatchlistEntry(entry);
+      this.send({ type: "bootstrap_changed" });
+
+      try {
+        const summaryResult = await codex.runTurn({
+          threadId: result.threadId,
+          model: aiSettings.model,
+          effort: lowEffortFor(codex, aiSettings),
+          prompt: weeklySummaryPrompt(output),
+          outputSchema: WEEKLY_SUMMARY_OUTPUT_JSON_SCHEMA,
+        });
+        this.store.saveThread(
+          request.leagueId,
+          purpose,
+          summaryResult.threadId,
+        );
+        const editorial = WeeklyPlanEditorialSummarySchema.parse(
+          JSON.parse(summaryResult.text),
+        );
+        const summary = deriveWeeklyPlanSummary(output, editorial);
+        this.store.saveWeeklyPlanSummary(built.plan.id, summary);
+        bundle = this.store.getWeeklyPlanBundle(request) ?? bundle;
+      } catch (error) {
+        console.warn("Unable to create weekly plan micro summary", error);
+      }
+
+      const latestContext = this.store.getWeeklyContext(request);
+      if (
+        latestContext?.contextHash &&
+        latestContext.contextHash !== built.plan.inputHash
+      ) {
+        const reconciled = reconcileWeeklyPlan({
+          plan: bundle.plan ?? built.plan,
+          contextHash: latestContext.contextHash,
+          changes: bundle.leagueWeek.meaningfulChanges,
+        });
+        this.store.setWeeklyPlanStatus(
+          built.plan.id,
+          reconciled.status,
+          reconciled.statusReason,
+        );
+        bundle = this.store.getWeeklyPlanBundle(request) ?? bundle;
+      } else {
+        this.store.clearWeeklyChanges(request);
+        bundle = this.store.getWeeklyPlanBundle(request) ?? bundle;
+      }
+      this.send({ type: "weekly_plan_completed", bundle });
+      this.send({ type: "bootstrap_changed" });
+      return bundle;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Weekly plan generation failed";
+      this.send({ type: "weekly_plan_failed", key: request, error: message });
+      throw error;
+    }
+  }
+
+  loadWeeklyPhaseBrief(input: WeeklyPhaseBriefKey): WeeklyPhaseBrief | null {
+    return this.store.getCurrentWeeklyPhaseBrief(input);
+  }
+
+  async generateWeeklyPhaseBrief(
+    input: WeeklyPhaseBriefRequest,
+  ): Promise<WeeklyPhaseBrief> {
+    const request = WeeklyPhaseBriefRequestSchema.parse(input);
+    const dashboard = this.requireDashboard();
+    if (
+      dashboard.league.leagueId !== request.leagueId ||
+      dashboard.league.season !== request.season ||
+      dashboard.week !== request.week
+    )
+      throw new Error(
+        "The active league or week changed. Refresh before building this briefing.",
+      );
+    if (!supportsWeeklyManagement(dashboard.leagueStatus))
+      throw new Error(
+        "Weekly briefings activate when Sleeper marks this league in season. Draft Room remains available now.",
+      );
+
+    const storedContext = this.store.getWeeklyContext(request);
+    if (!storedContext?.context || !storedContext.contextHash)
+      throw new Error("Refresh Sleeper before building this briefing");
+    const planBundle = this.store.getWeeklyPlanBundle(request);
+    if (!planBundle?.plan)
+      throw new Error(
+        "Build Tuesday's weekly plan before running the rest of the week.",
+      );
+
+    const context = storedContext.context as WeeklyContextData;
+    const plan = planBundle.plan;
+    const actionsForWeek = this.store.listWeeklyActionsForWeek(request);
+    const dataFreshThrough = storedContext.snapshotAt ?? dashboard.capturedAt;
+    const snapshotId =
+      this.store.getLatestSnapshotId(request.leagueId) ?? dataFreshThrough;
+    const inputHash = weeklyPhaseInputHash({
+      context,
+      sourcePlanId: plan.id,
+      sourcePlanHash: `${plan.inputHash}:${plan.evidenceHash}`,
+      phase: request.phase,
+      actionState: actionsForWeek.map(
+        ({ actionKey, status, dispositionNote, updatedAt }) => ({
+          actionKey,
+          status,
+          dispositionNote,
+          updatedAt,
+        }),
+      ),
+    });
+
+    this.send({
+      type: "weekly_phase_brief_started",
+      key: request,
+      mode: request.mode,
+    });
+    try {
+      this.send({
+        type: "weekly_phase_brief_progress",
+        key: request,
+        stage: "reading_league",
+      });
+
+      if (request.phase === "wednesday") {
+        this.send({
+          type: "weekly_phase_brief_progress",
+          key: request,
+          stage: "reconciling_week",
+        });
+        const output = buildWednesdayAftermath({
+          context,
+          actions: actionsForWeek,
+          capturedAt: dataFreshThrough,
+        });
+        this.send({
+          type: "weekly_phase_brief_progress",
+          key: request,
+          stage: "building_brief",
+        });
+        const built = buildWeeklyPhaseBrief({
+          key: request,
+          phase: "wednesday",
+          context,
+          output,
+          snapshotId,
+          sourcePlanId: plan.id,
+          inputHash,
+          dataFreshThrough,
+          version: this.store.getNextWeeklyPhaseBriefVersion(request),
+          model: "local-deterministic",
+          reasoningEffort: "none",
+        });
+        this.assertWeeklyPhaseInputsUnchanged(request, inputHash);
+        const brief = this.store.saveWeeklyPhaseBrief(
+          built.brief,
+          built.actions,
+          built.evidence,
+        );
+        this.send({ type: "weekly_phase_brief_completed", brief });
+        this.send({ type: "bootstrap_changed" });
+        return brief;
+      }
+
+      const aiSettings = this.store.getAiSettings();
+      const codex = this.requireCodex();
+      const priorBriefs = this.store.getCurrentWeeklyBriefs(request);
+      this.send({
+        type: "weekly_phase_brief_progress",
+        key: request,
+        stage: "researching_players",
+      });
+      if (request.phase === "thursday")
+        this.send({
+          type: "weekly_phase_brief_progress",
+          key: request,
+          stage: "optimizing_lineup",
+        });
+      const purpose = `weekly:${request.season}:${String(request.week)}:${request.phase}`;
+      const result = await codex.runTurn({
+        threadId: this.store.getThread(request.leagueId, purpose),
+        model: aiSettings.model,
+        effort: aiSettings.effort,
+        prompt: weeklyPhasePrompt({
+          request,
+          context,
+          plan,
+          actions: actionsForWeek,
+          priorBriefs,
+          previousBrief:
+            request.phase === "thursday"
+              ? priorBriefs.thursday
+              : priorBriefs.weekend,
+        }),
+        outputSchema: WEEKLY_PHASE_OUTPUT_JSON_SCHEMAS[request.phase],
+      });
+      this.store.saveThread(request.leagueId, purpose, result.threadId);
+      this.send({
+        type: "weekly_phase_brief_progress",
+        key: request,
+        stage: "building_brief",
+      });
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(result.text);
+      } catch {
+        throw new Error(
+          "Codex returned a briefing that did not match the decision format. Try regenerating it.",
+        );
+      }
+      const built =
+        request.phase === "thursday"
+          ? buildWeeklyPhaseBrief({
+              key: request,
+              phase: "thursday",
+              context,
+              output: parseThursdayOutput(parsed),
+              snapshotId,
+              sourcePlanId: plan.id,
+              inputHash,
+              dataFreshThrough,
+              version: this.store.getNextWeeklyPhaseBriefVersion(request),
+              model: aiSettings.model,
+              reasoningEffort: aiSettings.effort,
+            })
+          : buildWeeklyPhaseBrief({
+              key: request,
+              phase: "weekend",
+              context,
+              output: parseWeekendOutput(parsed),
+              snapshotId,
+              sourcePlanId: plan.id,
+              inputHash,
+              dataFreshThrough,
+              version: this.store.getNextWeeklyPhaseBriefVersion(request),
+              model: aiSettings.model,
+              reasoningEffort: aiSettings.effort,
+            });
+      this.assertWeeklyPhaseInputsUnchanged(request, inputHash);
+      const brief = this.store.saveWeeklyPhaseBrief(
+        built.brief,
+        built.actions,
+        built.evidence,
+      );
+      this.send({ type: "weekly_phase_brief_completed", brief });
+      this.send({ type: "bootstrap_changed" });
+      return brief;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Weekly briefing generation failed";
+      this.send({
+        type: "weekly_phase_brief_failed",
+        key: request,
+        error: message,
+      });
+      throw error;
+    }
+  }
+
+  private assertWeeklyPhaseInputsUnchanged(
+    request: WeeklyPhaseBriefRequest,
+    expectedHash: string,
+  ): void {
+    const storedContext = this.store.getWeeklyContext(request);
+    const plan = this.store.getWeeklyPlanBundle(request)?.plan ?? null;
+    if (!storedContext?.context || !plan)
+      throw new Error(
+        `The ${request.phase} briefing inputs changed while it was being built. Review the refreshed week and try again.`,
+      );
+    const context = storedContext.context as WeeklyContextData;
+    const actions = this.store.listWeeklyActionsForWeek(request);
+    const currentHash = weeklyPhaseInputHash({
+      context,
+      sourcePlanId: plan.id,
+      sourcePlanHash: `${plan.inputHash}:${plan.evidenceHash}`,
+      phase: request.phase,
+      actionState: actions.map(
+        ({ actionKey, status, dispositionNote, updatedAt }) => ({
+          actionKey,
+          status,
+          dispositionNote,
+          updatedAt,
+        }),
+      ),
+    });
+    if (currentHash !== expectedHash)
+      throw new Error(
+        `Sleeper data or weekly decisions changed while the ${request.phase} briefing was being built. Review the refreshed week and try again.`,
+      );
+  }
+
+  updateWeeklyAction(input: WeeklyActionUpdate): WeeklyAction {
+    const action = this.store.updateWeeklyAction(
+      input.actionId,
+      input.status,
+      input.note ?? null,
+    );
+    if (action.kind === "watch" && action.status === "dismissed") {
+      const watchedPlayerIds = new Set(action.playerIds);
+      for (const entry of this.store.listWatchlistEntries(action.leagueId))
+        if (watchedPlayerIds.has(entry.playerId))
+          this.store.updateWatchlistState(entry.id, "dismissed");
+    }
+    this.send({ type: "weekly_action_updated", action });
+    this.send({ type: "bootstrap_changed" });
+    return action;
   }
 
   private async generateDraftPlanReport(): Promise<AiReport> {
@@ -393,6 +879,13 @@ export class AppRuntime extends EventEmitter {
     const clean = message.trim();
     if (!clean) throw new Error("Ask the analyst a question first");
     const leagueId = dashboard.league.leagueId;
+    const leagueWeekKey = {
+      leagueId,
+      season: dashboard.league.season,
+      week: dashboard.week,
+    };
+    const weeklyBundle = this.store.getWeeklyPlanBundle(leagueWeekKey);
+    const weeklyBriefs = this.store.getCurrentWeeklyBriefs(leagueWeekKey);
     const runId = randomUUID();
     const userMessage = this.store.saveChatMessage(leagueId, "user", clean);
     this.send({ type: "chat_started", leagueId, runId, userMessage });
@@ -401,7 +894,36 @@ export class AppRuntime extends EventEmitter {
         threadId: this.store.getThread(leagueId, "conversation"),
         model: aiSettings.model,
         effort: aiSettings.effort,
-        prompt: `Active Sleeper league: ${leagueId}. My Sleeper user ID: ${dashboard.league.userId}. My roster ID: ${String(dashboard.league.rosterId)}.\n\n${clean}`,
+        prompt: `Active Sleeper league: ${leagueId}. My Sleeper user ID: ${dashboard.league.userId}. My roster ID: ${String(dashboard.league.rosterId)}. Active season/week: ${dashboard.league.season}/${String(dashboard.week)}.\n\nCurrent persisted weekly plan context (if any):\n${JSON.stringify(
+          weeklyBundle
+            ? {
+                planId: weeklyBundle.plan?.id ?? null,
+                status: weeklyBundle.leagueWeek.planStatus,
+                competitiveLane: weeklyBundle.leagueWeek.competitiveLane,
+                headline: weeklyBundle.plan?.output.headline ?? null,
+                summary: weeklyBundle.plan?.output.summary ?? null,
+                actions: weeklyBundle.actions.map((action) => ({
+                  id: action.id,
+                  title: action.title,
+                  status: action.status,
+                  note: action.dispositionNote,
+                })),
+                phaseBriefs: Object.fromEntries(
+                  Object.entries(weeklyBriefs).map(([phase, brief]) => [
+                    phase,
+                    brief
+                      ? {
+                          id: brief.id,
+                          generatedAt: brief.generatedAt,
+                          headline: brief.output.headline,
+                          summary: brief.output.summary,
+                        }
+                      : null,
+                  ]),
+                ),
+              }
+            : null,
+        )}\n\nDo not silently mutate the persisted weekly plan. Explain or challenge it conversationally.\n\n${clean}`,
         onDelta: (text) =>
           this.send({ type: "chat_delta", leagueId, runId, text }),
       });
@@ -545,7 +1067,7 @@ export class AppRuntime extends EventEmitter {
     const dashboard: Dashboard = {
       league: refreshedLeague,
       capturedAt,
-      week: state?.week ?? 1,
+      week: matchupWeek,
       leagueStatus: league.status,
       scoringLabel: scoringLabel(league.scoring_settings),
       rosterPositions: league.roster_positions,
@@ -591,6 +1113,203 @@ export class AppRuntime extends EventEmitter {
         playerCacheFetchedAt: directory.fetchedAt,
       },
     };
+  }
+
+  private async refreshWeeklyContext(
+    saved: SavedLeague,
+    dashboard: Dashboard,
+  ): Promise<void> {
+    const result = await getWeeklyContext(
+      { api: this.api, players: this.players },
+      {
+        league_id: saved.leagueId,
+        roster_id: saved.rosterId,
+        week: dashboard.week,
+        recent_matchup_weeks: 3,
+        trending_lookback_hours: 24,
+        candidate_limit: 40,
+      },
+    );
+    const context = result.data;
+    const key = {
+      leagueId: context.key.league_id,
+      season: context.key.season,
+      week: context.key.week,
+    };
+    this.expireWatchlistEntries(key);
+    const previousRecord = this.store.getWeeklyContext(key);
+    const previous = previousRecord?.context
+      ? (previousRecord.context as WeeklyContextData)
+      : null;
+    const detectedAt = new Date().toISOString();
+    const changes = deriveWeeklyChanges(previous, context, detectedAt);
+    const contextHash = weeklyContextHash(context);
+    this.store.saveSleeperEvents(
+      sleeperEventsFromContext(key, context, detectedAt),
+    );
+    this.store.saveWeeklyContext({
+      ...key,
+      phase: weeklyPhaseForDate(),
+      snapshotAt: dashboard.capturedAt,
+      contextHash,
+      context,
+      meaningfulChanges: changes,
+    });
+
+    const bundle = this.store.getWeeklyPlanBundle(key);
+    if (bundle?.plan) {
+      this.reconcileObservedWeeklyActions(bundle.actions, context);
+      const reconciled = reconcileWeeklyPlan({
+        plan: bundle.plan,
+        contextHash,
+        changes,
+      });
+      if (
+        reconciled.status !== bundle.plan.status ||
+        reconciled.statusReason !== bundle.plan.statusReason
+      )
+        this.store.setWeeklyPlanStatus(
+          bundle.plan.id,
+          reconciled.status,
+          reconciled.statusReason,
+        );
+    }
+    const leagueWeek = this.store.getLeagueWeek(key);
+    if (leagueWeek) this.send({ type: "league_week_changed", leagueWeek });
+  }
+
+  private seedDraftSeasonHandoff(dashboard: Dashboard): void {
+    if (
+      dashboard.draft?.status !== "complete" ||
+      (dashboard.leagueStatus !== "pre_draft" && dashboard.week > 1)
+    )
+      return;
+    const draftReport = this.store
+      .getReports(dashboard.league.leagueId)
+      .find(
+        (report) =>
+          report.kind === "draft_candidates" &&
+          report.draftPlan?.draftId === dashboard.draft?.draftId,
+      );
+    const knownPlayers = new Map(
+      [
+        ...dashboard.starters,
+        ...dashboard.bench,
+        ...dashboard.reserve,
+        ...dashboard.taxi,
+        ...dashboard.draft.picks.flatMap((pick) =>
+          pick.player ? [pick.player] : [],
+        ),
+        ...dashboard.draft.candidates.map((candidate) => candidate.player),
+      ].map((player) => [player.playerId, player]),
+    );
+    const pinnedResearchTargets = [
+      ...this.store.getPinnedDraftCandidateIds(dashboard.league.leagueId),
+    ].flatMap((playerId) => {
+      const player = knownPlayers.get(playerId);
+      return player ? [{ player }] : [];
+    });
+    const handoff = buildDraftSeasonHandoff({
+      dashboard,
+      draftPlan: draftReport?.draftPlan ?? null,
+      pinnedResearchTargets,
+      existingWatchlist: this.store.listWatchlistEntries(
+        dashboard.league.leagueId,
+        { includeInactive: true },
+      ),
+      generatedAt: dashboard.capturedAt,
+    });
+    for (const seed of handoff.watchlistSeeds)
+      this.store.upsertWatchlistEntry(seed.entry);
+  }
+
+  private expireWatchlistEntries(key: {
+    leagueId: string;
+    season: string;
+    week: number;
+  }): void {
+    for (const entry of this.store.listWatchlistEntries(key.leagueId)) {
+      if (!entry.expiresSeason || entry.expiresWeek === null) continue;
+      const expired =
+        entry.expiresSeason < key.season ||
+        (entry.expiresSeason === key.season && entry.expiresWeek < key.week);
+      if (expired) this.store.updateWatchlistState(entry.id, "expired");
+    }
+  }
+
+  private reconcileObservedWeeklyActions(
+    actions: WeeklyAction[],
+    context: WeeklyContextData,
+  ): void {
+    const myRosterId = context.my_team.roster_id;
+    const thursdayBrief = this.store.getCurrentWeeklyPhaseBrief({
+      leagueId: context.key.league_id,
+      season: context.key.season,
+      week: context.key.week,
+      phase: "thursday",
+    });
+    for (const action of actions) {
+      if (action.status !== "pending") continue;
+      if (action.kind === "lineup_move") {
+        const move =
+          thursdayBrief?.phase === "thursday"
+            ? thursdayBrief.output.recommendedMoves.find(
+                (candidate) =>
+                  `thursday:${candidate.actionKey}` === action.actionKey,
+              )
+            : null;
+        if (
+          !move ||
+          context.my_team.starters[move.toSlotIndex]?.player_id !==
+            move.playerId
+        )
+          continue;
+        try {
+          this.store.updateWeeklyAction(
+            action.id,
+            "observed_in_sleeper",
+            "Sleeper now shows the recommended player in your starting lineup. Confirm whether this recommendation is complete.",
+          );
+        } catch (error) {
+          console.warn("Unable to reconcile a weekly lineup action", error);
+        }
+        continue;
+      }
+      if (
+        ![
+          "waiver_claim",
+          "free_agent_add",
+          "drop",
+          "trade",
+          "roster_upgrade",
+          "stash",
+        ].includes(action.kind)
+      )
+        continue;
+      const event = context.current_week_transactions.events.find(
+        (candidate) =>
+          candidate.status.toLowerCase() === "complete" &&
+          candidate.roster_ids.includes(myRosterId) &&
+          transactionCanObserveAction(
+            candidate.transaction.type,
+            action.kind,
+          ) &&
+          action.playerIds.some((playerId) =>
+            candidate.player_ids.includes(playerId),
+          ),
+      );
+      if (!event) continue;
+      try {
+        this.store.updateWeeklyAction(
+          action.id,
+          "observed_in_sleeper",
+          "Sleeper now reflects a related roster transaction. Confirm whether this recommendation is complete.",
+          event.event_id,
+        );
+      } catch (error) {
+        console.warn("Unable to reconcile a weekly action", error);
+      }
+    }
   }
 
   private requireDashboard(): Dashboard {
@@ -744,6 +1463,15 @@ function numeric(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function transactionCanObserveAction(
+  transactionType: string,
+  actionKind: WeeklyAction["kind"],
+): boolean {
+  if (actionKind === "trade") return transactionType === "trade";
+  if (actionKind === "waiver_claim") return transactionType === "waiver";
+  return ["waiver", "free_agent"].includes(transactionType);
+}
+
 function formatRecord(settings: Record<string, unknown>): string {
   const wins = numeric(settings["wins"]) ?? 0;
   const losses = numeric(settings["losses"]) ?? 0;
@@ -766,6 +1494,289 @@ export function parseLeagueId(input: string): string {
   if (!match?.[1])
     throw new Error("This does not look like a Sleeper league URL");
   return match[1];
+}
+
+function weeklyPlanPrompt(input: {
+  request: WeeklyPlanRequest;
+  context: WeeklyContextData;
+  previousPlan: WeeklyPlan | null;
+  previousActions: WeeklyAction[];
+  watchlist: WatchlistEntry[];
+}): string {
+  const currentRosterId = input.context.my_team.roster_id;
+  const researchCohort = selectTuesdayResearchCohort(
+    input.context,
+    input.watchlist,
+  );
+  const resolvedActions = input.previousActions
+    .filter((action) => action.status !== "pending")
+    .map((action) => ({
+      actionKey: action.actionKey,
+      title: action.title,
+      status: action.status,
+      note: action.dispositionNote,
+    }));
+  const context = {
+    key: input.context.key,
+    mode: input.request.mode,
+    priorPlanId: input.previousPlan?.id ?? null,
+    league: {
+      name: input.context.league.name,
+      status: input.context.league.status,
+      totalRosters: input.context.league.total_rosters,
+      rosterPositions: input.context.league.roster_positions,
+      scoringSettings: input.context.league.scoring_settings,
+      settings: input.context.league.settings,
+      waiverType: input.context.league.waiver_type,
+      faabStartingBudget: input.context.league.faab_starting_budget,
+    },
+    myTeam: {
+      rosterId: currentRosterId,
+      teamName:
+        input.context.my_team.team_name ??
+        input.context.my_team.display_name ??
+        input.context.my_team.username,
+      standings: input.context.my_team.standings,
+      faab: input.context.my_team.faab,
+      rosterPurposeBaseline: input.context.my_team.roster_purpose_baseline,
+      starters: input.context.my_team.starters.map(promptPlayer),
+      bench: input.context.my_team.bench.map(promptPlayer),
+      reserve: input.context.my_team.reserve.map(promptPlayer),
+      taxi: input.context.my_team.taxi.map(promptPlayer),
+    },
+    leagueTable: input.context.league_table,
+    leagueRosters: input.context.league_rosters.map((roster) => ({
+      rosterId: roster.roster_id,
+      teamName:
+        roster.team_name ?? roster.display_name ?? roster.username ?? null,
+      standings: roster.standings,
+      faab: roster.faab,
+      players: roster.all_players.map(promptPlayer),
+    })),
+    recentMatchups: input.context.recent_matchups,
+    currentWeekTransactions: input.context.current_week_transactions.normalized,
+    trendingAdds: input.context.trending.adds.slice(0, 20),
+    trendingDrops: input.context.trending.drops.slice(0, 20),
+    candidateCohort: researchCohort,
+    activeWatchlist: input.watchlist,
+    priorManagerDispositions: resolvedActions,
+    limitations: input.context.limitations,
+  };
+
+  return `Build the manager's substantial Tuesday Weekly Plan for one frozen Sleeper league-week context.
+
+League ID: ${input.request.leagueId}
+Roster ID: ${String(currentRosterId)}
+Season/week: ${input.request.season} / ${String(input.request.week)}
+Generation mode: ${input.request.mode}
+
+Frozen deterministic context:
+${JSON.stringify(context)}
+
+Process:
+1. Call get_weekly_context first with this league ID, roster ID, and week to verify the current Sleeper facts.
+2. Treat the frozen candidateCohort as the bounded waiver research set. Do not research the entire free-agent universe.
+   Every active or triggered Watch player who remains available is already reserved a place in this cohort.
+3. Use live web search for decision-relevant role, opportunity, injury, depth-chart, schedule, and credible consensus context. A search result is discovery, not a source; cite the actual page used.
+4. Produce one opinionated current plan and also credible alternatives. AI assists the manager; it does not run the team.
+
+Required reasoning:
+- Reassess contender, retooler, or uncertain for this week using record rank, points rank, health, depth, current scoring ability, and durable value. Surface contrary evidence.
+- Make Add Now, Watch, and Exit lists. Every Exit player must be on my roster. Every Add/Watch player must be in candidateCohort.
+- Audit roster purpose using start, insure, appreciate, and pop. A player may legitimately have no purpose.
+- Build a valid ranked waiver ladder. Claims sharing one drop slot use the same contingencyGroup. Use percentages of starting FAAB and account for remaining budget. For non-FAAB leagues, all FAAB fields are null.
+- Recommend one focused trade-market interaction, not a batch of generic offers. Do not repeat a declined/dismissed prior action unless material evidence changed, and explain the change.
+- Use only exact player IDs and roster IDs present in the frozen context.
+- Use unique consecutive waiver priorities starting at 1 and unique actionKey values.
+- Give each source a unique non-null evidenceId such as source-1. All sourceIds must match one of those evidenceId values.
+- Every material current claim needs a cited source. Sleeper-derived claims use sourceType sleeper and may use a null URL.
+- Do not claim to have submitted a claim, changed a roster, or sent a trade. This app is read-only.
+
+Return only JSON matching the supplied schema.`;
+}
+
+function weeklyPhasePrompt(input: {
+  request: Exclude<WeeklyPhaseBriefRequest, { phase: "wednesday" }>;
+  context: WeeklyContextData;
+  plan: WeeklyPlan;
+  actions: WeeklyAction[];
+  priorBriefs: CurrentWeeklyBriefs;
+  previousBrief: WeeklyPhaseBrief | null;
+}): string {
+  const roster = input.context.my_team.all_players
+    .filter((player) => player.player_id !== "0")
+    .map((player) => ({
+      ...promptPlayer(player),
+      fantasyPositions: player.fantasy_positions,
+      isStarter: input.context.my_team.starters.some(
+        (starter) => starter.player_id === player.player_id,
+      ),
+    }));
+  const actionState = input.actions.map((action) => ({
+    actionKey: action.actionKey,
+    kind: action.kind,
+    title: action.title,
+    status: action.status,
+    note: action.dispositionNote,
+    playerIds: action.playerIds,
+  }));
+  const priorBriefs = Object.fromEntries(
+    Object.entries(input.priorBriefs).map(([phase, brief]) => [
+      phase,
+      brief
+        ? {
+            id: brief.id,
+            generatedAt: brief.generatedAt,
+            headline: brief.output.headline,
+            summary: brief.output.summary,
+          }
+        : null,
+    ]),
+  );
+  const phaseContext =
+    input.request.phase === "thursday"
+      ? {
+          legalLineupSlots: currentLegalLineup(input.context),
+          roster,
+          nextMatchup: input.context.recent_matchups.at(-1) ?? null,
+        }
+      : {
+          legalLineupSlots: currentLegalLineup(input.context),
+          roster,
+          candidateCohort: input.context.available_candidate_pool.players
+            .slice(0, 12)
+            .map((player) => ({
+              ...promptPlayer(player),
+              fantasyPositions: player.fantasy_positions,
+              baselineRank: player.baseline_rank,
+              baselineScore: player.baseline_score,
+              signals: player.signals,
+            })),
+        };
+  const frozen = {
+    key: input.context.key,
+    mode: input.request.mode,
+    league: {
+      name: input.context.league.name,
+      rosterPositions: input.context.league.roster_positions,
+      scoringSettings: input.context.league.scoring_settings,
+      settings: input.context.league.settings,
+    },
+    team: {
+      rosterId: input.context.my_team.roster_id,
+      standings: input.context.my_team.standings,
+      faab: input.context.my_team.faab,
+    },
+    tuesdayPlan: {
+      id: input.plan.id,
+      status: input.plan.status,
+      headline: input.plan.output.headline,
+      summary: input.plan.output.summary,
+      competitiveLane: input.plan.output.competitiveLane,
+      actions: input.plan.output.actions,
+      watch: input.plan.output.watch,
+      refreshTriggers: input.plan.output.refreshTriggers,
+    },
+    actionState,
+    priorBriefs,
+    previousSamePhaseBrief: input.previousBrief
+      ? {
+          id: input.previousBrief.id,
+          headline: input.previousBrief.output.headline,
+          summary: input.previousBrief.output.summary,
+          generatedAt: input.previousBrief.generatedAt,
+        }
+      : null,
+    phaseContext,
+    limitations: input.context.limitations,
+  };
+
+  const phaseInstructions =
+    input.request.phase === "thursday"
+      ? `Build a focused Thursday start/sit briefing.
+- Research only the roster players needed to settle starting slots and close calls. Prefer official injury reports, team reporting, credible projections/rankings, matchup context, and weather when relevant.
+- slotAssignments must include every legalLineupSlots entry exactly once, with the exact slotIndex and slot label. Every assigned player must be on the active roster and eligible for that slot. If the current lineup is already best, return it with an empty recommendedMoves array.
+- recommendedMoves describes only actual changes from the current lineup. closeCalls explain meaningful toss-ups and the concrete news that would flip them. flexNotes should preserve late-swap optionality where league slots allow it.`
+      : `Build a focused weekend safety check.
+- Research only current starters with meaningful injury/inactive risk, unresolved Thursday close calls, and the supplied 12-player candidate cohort. Do not survey the entire player universe.
+- Critical alerts must concern players on this roster. Stash candidates must come from candidateCohort and any dropPlayerId must be on this roster.
+- Recommend only changes justified by news since the earlier plan. Preserve late-swap flexibility and label the actionable time window. An empty action list is correct when nothing material changed.`;
+
+  return `${phaseInstructions}
+
+Frozen league-week context:
+${JSON.stringify(frozen)}
+
+Grounding and safety rules:
+- Treat the frozen Sleeper context as authoritative for roster ownership, availability, league rules, and IDs. Do not call Sleeper again during this turn.
+- Use live web search for current evidence. A search result is discovery, not a source; cite the actual page used.
+- Give every source a unique, non-null evidenceId such as source-1. Every sourceIds value must reference one of those evidenceId values.
+- Use only exact player IDs and slot indexes present in the frozen context. Never invent a player, roster, or lineup slot.
+- This app is read-only. Describe recommendations; never claim to have changed a lineup or added a player.
+- Keep the narrative conclusion-led and candid. Surface uncertainty rather than filling gaps with guesses.
+
+Return only JSON matching the supplied schema.`;
+}
+
+function parseThursdayOutput(input: unknown): ThursdayLineupOutput {
+  const parsed = ThursdayLineupOutputSchema.safeParse(input);
+  if (!parsed.success) {
+    console.warn("Invalid structured Thursday briefing", parsed.error);
+    throw new Error(
+      "Codex returned a Thursday briefing that did not match the decision format. Try regenerating it.",
+    );
+  }
+  return parsed.data;
+}
+
+function parseWeekendOutput(input: unknown): WeekendCheckOutput {
+  const parsed = WeekendCheckOutputSchema.safeParse(input);
+  if (!parsed.success) {
+    console.warn("Invalid structured weekend briefing", parsed.error);
+    throw new Error(
+      "Codex returned a weekend briefing that did not match the decision format. Try regenerating it.",
+    );
+  }
+  return parsed.data;
+}
+
+function weeklySummaryPrompt(output: TuesdayPlanOutput): string {
+  return `Condense the completed weekly plan below into Front Office card copy. This is an editorial step only: do not call tools, search the web, or introduce facts.
+
+Return only JSON matching the supplied schema:
+- headline: conclusion-led, specific, no more than 100 characters
+- summary: at most two sentences and 220 characters, with the most actionable detail first
+
+The app derives lane, pending-action count, and source count directly from the
+validated plan after this editorial turn; do not return those fields.
+
+Completed plan:
+${JSON.stringify(output)}`;
+}
+
+function promptPlayer(player: PlayerSummary) {
+  return {
+    playerId: player.player_id,
+    name: player.name,
+    position: player.position,
+    team: player.team,
+    status: player.status,
+    injuryStatus: player.injury_status,
+    depthChartOrder: player.depth_chart_order,
+    yearsExperience: player.years_exp,
+    searchRank: player.search_rank,
+  };
+}
+
+function lowEffortFor(codex: CodexSupervisor, settings: AiSettings): string {
+  const selectedModel = codex
+    .getStatus()
+    .availableModels.find((model) => model.model === settings.model);
+  return selectedModel?.supportedReasoningEfforts.some(
+    (candidate) => candidate.effort === "low",
+  )
+    ? "low"
+    : settings.effort;
 }
 
 function reportPrompt(kind: ReportKind, dashboard: Dashboard): string {

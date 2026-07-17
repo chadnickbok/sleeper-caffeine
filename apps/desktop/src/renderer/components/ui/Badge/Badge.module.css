@@ -18,14 +18,21 @@
 }
 
 .accent,
-.live,
-.success {
+.live {
   color: var(--color-action-bright);
+}
+
+.success {
+  color: var(--color-status-success);
+}
+
+.info {
+  color: var(--color-status-info);
 }
 
 .stale,
 .warning {
-  color: #ffae6d;
+  color: var(--color-status-warning);
 }
 
 .danger {

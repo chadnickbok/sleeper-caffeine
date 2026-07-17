@@ -16,6 +16,16 @@ const api: SleeperCaffeineApi = {
     ipcRenderer.invoke(IPC_CHANNELS.refreshActiveLeague),
   generateReport: (kind) =>
     ipcRenderer.invoke(IPC_CHANNELS.generateReport, kind),
+  loadWeeklyPlan: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.loadWeeklyPlan, input),
+  generateWeeklyPlan: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.generateWeeklyPlan, input),
+  loadWeeklyPhaseBrief: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.loadWeeklyPhaseBrief, input),
+  generateWeeklyPhaseBrief: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.generateWeeklyPhaseBrief, input),
+  updateWeeklyAction: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateWeeklyAction, input),
   loadChatHistory: (input) =>
     ipcRenderer.invoke(IPC_CHANNELS.loadChatHistory, input),
   sendChat: (message) => ipcRenderer.invoke(IPC_CHANNELS.sendChat, message),

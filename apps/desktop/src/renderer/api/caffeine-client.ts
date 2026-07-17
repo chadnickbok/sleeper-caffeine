@@ -1,8 +1,13 @@
 import type {
   AiSettings,
   ChatHistoryCursor,
+  LeagueWeekKey,
   ReportKind,
   SleeperCaffeineApi,
+  WeeklyActionUpdate,
+  WeeklyPhaseBriefKey,
+  WeeklyPhaseBriefRequest,
+  WeeklyPlanRequest,
 } from "@sleeper-caffeine/ipc-contract";
 
 function api(): SleeperCaffeineApi {
@@ -17,6 +22,15 @@ export const caffeineClient = {
   setActiveLeague: (leagueId: string) => api().setActiveLeague(leagueId),
   refreshActiveLeague: () => api().refreshActiveLeague(),
   generateReport: (kind: ReportKind) => api().generateReport(kind),
+  loadWeeklyPlan: (input: LeagueWeekKey) => api().loadWeeklyPlan(input),
+  generateWeeklyPlan: (input: WeeklyPlanRequest) =>
+    api().generateWeeklyPlan(input),
+  loadWeeklyPhaseBrief: (input: WeeklyPhaseBriefKey) =>
+    api().loadWeeklyPhaseBrief(input),
+  generateWeeklyPhaseBrief: (input: WeeklyPhaseBriefRequest) =>
+    api().generateWeeklyPhaseBrief(input),
+  updateWeeklyAction: (input: WeeklyActionUpdate) =>
+    api().updateWeeklyAction(input),
   loadChatHistory: (input: {
     leagueId: string;
     before: ChatHistoryCursor | null;

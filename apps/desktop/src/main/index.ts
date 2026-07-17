@@ -6,7 +6,12 @@ import {
   AiSettingsSchema,
   ChatHistoryCursorSchema,
   DesktopPlatformSchema,
+  LeagueWeekKeySchema,
   ReportKindSchema,
+  WeeklyActionUpdateSchema,
+  WeeklyPhaseBriefKeySchema,
+  WeeklyPhaseBriefRequestSchema,
+  WeeklyPlanRequestSchema,
   type RuntimeEvent,
 } from "@sleeper-caffeine/ipc-contract";
 import { AppRuntime } from "./runtime.js";
@@ -78,6 +83,27 @@ function registerIpc(): void {
   );
   ipcMain.handle(IPC_CHANNELS.generateReport, (_event, kind: unknown) =>
     requireRuntime().generateReport(ReportKindSchema.parse(kind)),
+  );
+  ipcMain.handle(IPC_CHANNELS.loadWeeklyPlan, (_event, input: unknown) =>
+    requireRuntime().loadWeeklyPlan(LeagueWeekKeySchema.parse(input)),
+  );
+  ipcMain.handle(IPC_CHANNELS.generateWeeklyPlan, (_event, input: unknown) =>
+    requireRuntime().generateWeeklyPlan(WeeklyPlanRequestSchema.parse(input)),
+  );
+  ipcMain.handle(IPC_CHANNELS.loadWeeklyPhaseBrief, (_event, input: unknown) =>
+    requireRuntime().loadWeeklyPhaseBrief(
+      WeeklyPhaseBriefKeySchema.parse(input),
+    ),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.generateWeeklyPhaseBrief,
+    (_event, input: unknown) =>
+      requireRuntime().generateWeeklyPhaseBrief(
+        WeeklyPhaseBriefRequestSchema.parse(input),
+      ),
+  );
+  ipcMain.handle(IPC_CHANNELS.updateWeeklyAction, (_event, input: unknown) =>
+    requireRuntime().updateWeeklyAction(WeeklyActionUpdateSchema.parse(input)),
   );
   ipcMain.handle(IPC_CHANNELS.loadChatHistory, (_event, input: unknown) =>
     requireRuntime().loadChatHistory(

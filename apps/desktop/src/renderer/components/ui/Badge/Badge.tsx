@@ -4,6 +4,7 @@ import styles from "./Badge.module.css";
 export type BadgeTone =
   | "neutral"
   | "accent"
+  | "info"
   | "live"
   | "stale"
   | "warning"

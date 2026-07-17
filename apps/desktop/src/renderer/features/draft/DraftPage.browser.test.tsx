@@ -48,9 +48,102 @@ test("filters, expands, and pins candidates without an AI turn", async () => {
   await runningBackRow.click();
   await expect.element(page.getByText("88 baseline score")).toBeVisible();
 
-  await page.getByRole("button", { name: "+ Research" }).click();
+  await page.getByRole("button", { name: "+ Pin" }).click();
   expect(onTogglePin).toHaveBeenCalledWith("rb-1");
 });
+
+test("turns on room-only polling without starting an AI turn", async () => {
+  const onRefresh = vi.fn();
+  const onGenerate = vi.fn();
+  await renderDraft(dashboard(), { onRefresh, onGenerate });
+
+  await page
+    .getByRole("button", { name: "Auto-refresh off", exact: true })
+    .click();
+
+  expect(onRefresh).toHaveBeenCalledOnce();
+  expect(onGenerate).not.toHaveBeenCalled();
+  await expect
+    .element(page.getByRole("button", { name: "Auto-refresh on", exact: true }))
+    .toHaveAttribute("aria-pressed", "true");
+  await expect.element(page.getByText("Waiting for pick one")).toBeVisible();
+  await expect.element(page.getByText("Baseline value band")).toBeVisible();
+});
+
+test("explains scheduled and completed draft states", async () => {
+  const scheduled = dashboard();
+  if (!scheduled.draft) throw new Error("Expected a draft fixture");
+  scheduled.draft.status = "scheduled";
+  scheduled.draft.startTime = Date.parse("2026-08-20T19:00:00.000Z");
+  scheduled.draft.candidates = [];
+  const scheduledRender = await renderDraft(scheduled);
+
+  await expect
+    .element(page.getByText("Research the board now; react when picks begin."))
+    .toBeVisible();
+  await expect
+    .element(page.getByText(/has not published an available-player pool/))
+    .toBeVisible();
+  await scheduledRender.unmount();
+
+  const complete = dashboard();
+  if (!complete.draft) throw new Error("Expected a draft fixture");
+  complete.draft.status = "complete";
+  complete.draft.sourceStatus = "complete";
+  complete.draft.currentPickNo = null;
+  complete.draft.myUpcomingPickNumbers = [];
+  complete.draft.picks = [
+    {
+      pickNo: 2,
+      round: 1,
+      draftSlot: 2,
+      rosterId: 1,
+      isKeeper: false,
+      player: player("wr-1", "Receiver Prospect", "WR"),
+    },
+  ];
+  await renderDraft(complete);
+
+  await expect
+    .element(page.getByText("Your final board is preserved."))
+    .toBeVisible();
+  await expect.element(page.getByText("Research archive")).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: /Auto-refresh off/ }))
+    .toBeDisabled();
+  await expect
+    .element(page.getByText("Build one researched plan for the next decision."))
+    .not.toBeInTheDocument();
+});
+
+async function renderDraft(
+  value: Dashboard,
+  overrides: {
+    onRefresh?: () => void;
+    onGenerate?: () => void;
+  } = {},
+) {
+  return render(
+    <DraftPage
+      dashboard={value}
+      report={null}
+      generating={null}
+      codex={{
+        state: "ready",
+        binaryPath: "/usr/local/bin/codex",
+        version: "test",
+        email: "analyst@example.com",
+        planType: "test",
+        errorMessage: null,
+        availableModels: [],
+      }}
+      onGenerate={overrides.onGenerate ?? vi.fn()}
+      onLogin={vi.fn()}
+      onRefresh={overrides.onRefresh ?? vi.fn()}
+      onTogglePin={vi.fn()}
+    />,
+  );
+}
 
 function dashboard(): Dashboard {
   return {

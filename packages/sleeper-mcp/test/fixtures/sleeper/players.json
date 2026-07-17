@@ -8,7 +8,9 @@
     "team": "SEA",
     "status": "Active",
     "injury_status": null,
+    "depth_chart_order": 1,
     "depth_chart_position": "QB",
+    "number": 7,
     "search_rank": 10
   },
   "p2": {

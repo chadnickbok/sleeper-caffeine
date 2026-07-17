@@ -19,23 +19,20 @@ export type AppPage =
   | "analysis"
   | "trades"
   | "draft"
-  | "waivers"
-  | "lineup"
+  | "weekly"
   | "settings";
 
 const NAV: Array<{
   page: AppPage;
   label: string;
   icon: IconName;
-  badge?: string;
 }> = [
   { page: "home", label: "Front office", icon: "grid" },
   { page: "roster", label: "Roster", icon: "users" },
   { page: "analysis", label: "Team analysis", icon: "pulse" },
   { page: "trades", label: "Trade lab", icon: "swap" },
   { page: "draft", label: "Draft room", icon: "target" },
-  { page: "waivers", label: "Waiver wire", icon: "spark", badge: "W1" },
-  { page: "lineup", label: "Start / sit", icon: "bolt", badge: "W1" },
+  { page: "weekly", label: "Weekly plan", icon: "spark" },
 ];
 
 export function AppShell({
@@ -68,7 +65,9 @@ export function AppShell({
   onDismissError(): void;
 }) {
   const pageScrollRef = useRef<HTMLDivElement>(null);
-  const activeLeagueId = data.leagues.find((league) => league.isActive)?.leagueId;
+  const activeLeagueId = data.leagues.find(
+    (league) => league.isActive,
+  )?.leagueId;
 
   useEffect(() => {
     if (pageScrollRef.current) {
@@ -109,7 +108,9 @@ export function AppShell({
             >
               <Icon name={item.icon} />
               <span>{item.label}</span>
-              {item.badge && <em>{item.badge}</em>}
+              {item.page === "weekly" && dashboard && (
+                <em>W{dashboard.week}</em>
+              )}
             </button>
           ))}
         </nav>

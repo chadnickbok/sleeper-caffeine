@@ -32,6 +32,7 @@ describe("LocalMcpBridge", () => {
       "get_available_players",
       "get_matchup_context",
       "get_trade_context",
+      "get_weekly_context",
       "get_league_history",
     ]);
     expect(bridge.getStatus().connectedSessions).toBe(1);

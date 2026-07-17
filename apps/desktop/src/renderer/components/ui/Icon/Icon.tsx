@@ -10,7 +10,20 @@ const icons = {
   ),
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   bolt: <path d="m13 2-9 12h8l-1 8 9-12h-8l1-8Z" />,
+  ban: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m5.6 5.6 12.8 12.8" />
+    </>
+  ),
+  check: <path d="m5 12 4 4L19 6" />,
   chevron: <path d="m9 18 6-6-6-6" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
   coffee: (
     <>
       <path d="M4 9h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9Z" />
@@ -29,6 +42,12 @@ const icons = {
       <path d="M18 13v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h7" />
     </>
   ),
+  eye: (
+    <>
+      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </>
+  ),
   grid: (
     <>
       <rect x="3" y="3" width="7" height="7" rx="2" />
@@ -41,6 +60,13 @@ const icons = {
     <>
       <rect x="4" y="10" width="16" height="11" rx="2" />
       <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" />
     </>
   ),
   pulse: <path d="M3 12h4l2-7 4 14 2-7h6" />,
@@ -77,6 +103,18 @@ const icons = {
       <circle cx="12" cy="12" r="9" />
       <circle cx="12" cy="12" r="4" />
       <path d="M12 3v3M21 12h-3M12 21v-3M3 12h3" />
+    </>
+  ),
+  trend: (
+    <>
+      <path d="m3 17 6-6 4 4 8-9" />
+      <path d="M15 6h6v6" />
+    </>
+  ),
+  trophy: (
+    <>
+      <path d="M8 4h8v4a4 4 0 0 1-8 0V4Z" />
+      <path d="M8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4M12 12v5M8 21h8M9 17h6" />
     </>
   ),
   users: (

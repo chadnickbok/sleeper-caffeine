@@ -4,9 +4,7 @@ import { useEffect } from "react";
 import { caffeineClient } from "../api/caffeine-client.js";
 import { queryKeys } from "../api/query-keys.js";
 
-export function useRuntimeEvents(
-  onChatEvent: (event: RuntimeEvent) => void,
-): void {
+export function useRuntimeEvents(onEvent: (event: RuntimeEvent) => void): void {
   const queryClient = useQueryClient();
   useEffect(
     () =>
@@ -21,10 +19,10 @@ export function useRuntimeEvents(
           queryClient.setQueryData<Bootstrap>(queryKeys.bootstrap, (current) =>
             current ? { ...current, mcp: event.status } : current,
           );
-        if (event.type.startsWith("chat_")) onChatEvent(event);
         if (event.type === "draft_changed")
           void queryClient.invalidateQueries({ queryKey: queryKeys.bootstrap });
+        onEvent(event);
       }),
-    [onChatEvent, queryClient],
+    [onEvent, queryClient],
   );
 }

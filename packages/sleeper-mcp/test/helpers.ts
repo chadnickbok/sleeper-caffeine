@@ -37,6 +37,8 @@ export async function createFixtureFetch(
     "/v1/league/12345": await fixture("league.json"),
     "/v1/league/12345/users": await fixture("users.json"),
     "/v1/league/12345/rosters": await fixture("rosters.json"),
+    "/v1/league/12345/matchups/1": await fixture("matchups.json"),
+    "/v1/league/12345/matchups/2": await fixture("matchups.json"),
     "/v1/league/12345/matchups/3": await fixture("matchups.json"),
     "/v1/league/12345/traded_picks": await fixture("traded-picks.json"),
     "/v1/league/12345/drafts": await fixture("drafts.json"),
@@ -46,6 +48,7 @@ export async function createFixtureFetch(
     "/v1/league/12345/winners_bracket": await fixture("bracket.json"),
     "/v1/players/nfl": await fixture("players.json"),
     "/v1/players/nfl/trending/add": await fixture("trending.json"),
+    "/v1/players/nfl/trending/drop": await fixture("trending-drops.json"),
     ...overrides,
   };
 
@@ -58,8 +61,10 @@ export async function createFixtureFetch(
   };
 }
 
-export async function createFixtureDependencies(): Promise<DomainDependencies> {
-  const fetch = await createFixtureFetch();
+export async function createFixtureDependencies(
+  overrides: Record<string, unknown> = {},
+): Promise<DomainDependencies> {
+  const fetch = await createFixtureFetch(overrides);
   const api = new SleeperApi(new SleeperClient({ fetch, maxRetries: 0 }));
   const cacheDir = await mkdtemp(join(tmpdir(), "sleeper-mcp-test-"));
   return {

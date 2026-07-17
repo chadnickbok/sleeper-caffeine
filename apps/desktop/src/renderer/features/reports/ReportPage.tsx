@@ -4,13 +4,18 @@ import type {
   ReportKind,
 } from "@sleeper-caffeine/ipc-contract";
 import { REPORT_STALE_AFTER_MS } from "@sleeper-caffeine/ipc-contract";
-import { caffeineClient } from "../../api/caffeine-client.js";
+import {
+  AiGenerationProgress,
+  AiRunButton,
+} from "../../components/ai/index.js";
 import {
   Page,
   PageHeading,
   SectionTitle,
 } from "../../components/layout/PageLayout.js";
-import { Button, Icon, Panel } from "../../components/ui/index.js";
+import { Icon, Panel } from "../../components/ui/index.js";
+import { EvidenceDisclosure } from "../evidence/index.js";
+import { formatDateTime, isOlderThan } from "../../lib/time.js";
 import styles from "./ReportPage.module.css";
 
 export function ReportPage({
@@ -42,17 +47,17 @@ export function ReportPage({
         title={title}
         description={description}
         action={
-          <AiAction
+          <AiRunButton
             status={codex}
             running={running}
-            hasReport={Boolean(report)}
-            onGenerate={() => onGenerate(kind)}
+            hasResult={Boolean(report)}
+            onRun={() => onGenerate(kind)}
             onLogin={onLogin}
           />
         }
       />
       {running ? (
-        <GeneratingState />
+        <AiGenerationProgress />
       ) : report ? (
         <ReportView report={report} />
       ) : (
@@ -94,8 +99,8 @@ export function ReportView({
           <h2>{report.payload.headline}</h2>
           <p>{report.payload.summary}</p>
           <small>
-            Generated {formatDate(report.generatedAt)} · snapshot{" "}
-            {formatDate(report.snapshotAt)}
+            Generated {formatDateTime(report.generatedAt)} · snapshot{" "}
+            {formatDateTime(report.snapshotAt)}
           </small>
         </Panel>
       )}
@@ -132,50 +137,10 @@ export function ReportView({
           </div>
         ))}
       </Panel>
-      <details className={styles.sources}>
-        <summary>
-          <span>
-            <small>Evidence</small>
-            <strong>Sources, assumptions and watch list</strong>
-          </span>
-          <em>
-            {report.payload.sources.length} sources ·{" "}
-            {report.payload.caveats.length} caveats
-          </em>
-          <Icon name="chevron" />
-        </summary>
-        <div className={styles.sourceContent}>
-          {report.payload.sources.map((source, index) => (
-            <button
-              className={styles.source}
-              key={`${source.title}-${String(index)}`}
-              onClick={() =>
-                source.url && void caffeineClient.openExternal(source.url)
-              }
-              disabled={!source.url}
-            >
-              <span
-                className={`${styles.sourceType} ${styles[source.sourceType]}`}
-              >
-                {source.sourceType}
-              </span>
-              <div>
-                <strong>{source.title}</strong>
-                <p>{source.claim}</p>
-              </div>
-              {source.url && <Icon name="external" />}
-            </button>
-          ))}
-          {report.payload.caveats.length > 0 && (
-            <div className={styles.caveats}>
-              <strong>Watch list</strong>
-              {report.payload.caveats.map((item) => (
-                <span key={item}>{item}</span>
-              ))}
-            </div>
-          )}
-        </div>
-      </details>
+      <EvidenceDisclosure
+        sources={report.payload.sources}
+        caveats={report.payload.caveats}
+      />
     </div>
   );
 }
@@ -193,28 +158,14 @@ export function AiAction({
   onGenerate(): void;
   onLogin(): void;
 }) {
-  if (status.state === "signed_out")
-    return (
-      <Button
-        variant="primary"
-        leading={<Icon name="spark" />}
-        onClick={onLogin}
-      >
-        Connect ChatGPT
-      </Button>
-    );
-  if (status.state === "unavailable")
-    return <Button disabled>Codex not installed</Button>;
   return (
-    <Button
-      variant="primary"
-      loading={running}
-      leading={<Icon name="spark" />}
-      onClick={onGenerate}
-      disabled={status.state !== "ready"}
-    >
-      {running ? "Researching…" : hasReport ? "Regenerate" : "Generate report"}
-    </Button>
+    <AiRunButton
+      status={status}
+      running={running}
+      hasResult={hasReport}
+      onRun={onGenerate}
+      onLogin={onLogin}
+    />
   );
 }
 
@@ -223,23 +174,7 @@ export function GeneratingState({
 }: {
   title?: string;
 }) {
-  return (
-    <Panel className={styles.generating}>
-      <div className={styles.radar}>
-        <span />
-        <span />
-        <i />
-      </div>
-      <div>
-        <small>Codex is working</small>
-        <h2>{title}</h2>
-        <p>
-          Reading Sleeper data, searching the live web, and separating discovery
-          from sourced evidence.
-        </p>
-      </div>
-    </Panel>
-  );
+  return <AiGenerationProgress title={title} />;
 }
 
 function ReportEmpty({ kind }: { kind: ReportKind }) {
@@ -277,13 +212,6 @@ function ReportEmpty({ kind }: { kind: ReportKind }) {
 
 function isStaleReport(report: AiReport): boolean {
   return (
-    report.invalidated ||
-    Date.now() - Date.parse(report.generatedAt) > REPORT_STALE_AFTER_MS
+    report.invalidated || isOlderThan(report.generatedAt, REPORT_STALE_AFTER_MS)
   );
-}
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

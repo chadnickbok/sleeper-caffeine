@@ -1,585 +1,899 @@
-# Sleeper Caffeine Project Plan
+# Sleeper Caffeine Product and Implementation Plan
 
-> Status: the v1 vertical slice is implemented. The next phase establishes the long-term React, design-system, testing, and cross-platform foundation before additional product surfaces are added.
+> Updated: 2026-07-17
+>
+> Status: the pull-based Weekly Command Center, live Draft Room roadmap, and draft-to-Week-1 handoff are implemented locally. Remaining work is release distribution, real-season calibration, and explicitly deferred roadmap items.
 
-## 1. Product goal
+## Implementation checkpoint
 
-Build an open-source desktop fantasy football front office that combines:
+The implementation now covers the plan's complete local product loop:
 
-- Deterministic, read-only league state from Sleeper.
-- A reusable Sleeper MCP server.
-- Persistent local snapshots and recommendation history.
-- Codex-managed ChatGPT login, threads, structured reports, and live web research.
-- A polished multi-league interface that feels useful without requiring AI.
+- Ordered SQLite migrations and durable, league-isolated weekly plans, phase briefs, evidence, actions, watchlists, and recommendation history.
+- A deterministic Sleeper weekly context with transactions, FAAB, standings, matchup scoring, roster-purpose baselines, a league-relevant candidate funnel, and retrospective legal-lineup optimization.
+- The manager-triggered Tuesday plan, local Wednesday aftermath, focused Thursday lineup pass, and weekend execution check, with explicit refresh versus AI-generation semantics.
+- A full Weekly Plan interface, Front Office summary, action dispositions, alternatives, evidence disclosures, phase-local retries, and conversational-plan context.
+- The live multi-team Draft Room, lightweight polling, deterministic board signals, board-bound AI plans, completed-board archive, and Week 1 watchlist handoff.
+- Cross-league evidence isolation, race-safe reconciliation, strict structured-output validation, source grounding, browser/Storybook coverage, and a packaged Electron smoke suite.
 
-The first release is read-only. It does not change lineups, submit waivers, send or accept trades, or automate a signed-in Sleeper browser.
+The app remains deliberately read-only and pull-based. Signing, notarization, publishing, background scheduling, paid ranking providers, and Sleeper write automation are not silently folded into this implementation.
 
-## 2. Decisions
+## 1. Product north star
 
-| Area                     | Decision                                                                                                        |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| Distribution             | Open-source GitHub project from day one.                                                                        |
-| Product name             | Sleeper Caffeine.                                                                                               |
-| Workspace                | pnpm monorepo.                                                                                                  |
-| Desktop                  | Electron, React, TypeScript, electron-vite.                                                                     |
-| MCP                      | Keep the existing adapter independently usable. Add an app-managed Streamable HTTP transport.                   |
-| Codex binary             | Discover an installed version; do not bundle one.                                                               |
-| OpenAI authentication    | ChatGPT login only in v1, managed by `codex app-server`.                                                        |
-| Codex isolation          | Dedicated app-owned `CODEX_HOME`.                                                                               |
-| Safety                   | Read-only sandbox, approval policy `never`, shell disabled, no write tools.                                     |
-| Web                      | Live web search is a core v1 feature. Reports distinguish discovery/search from the actual cited source.        |
-| League model             | Multiple saved leagues with one active league. Persist league ID, roster ID, and user ID.                       |
-| AI surfaces              | Structured cards plus a persistent conversational analyst.                                                      |
-| Active v1 reports        | Team analysis, trade suggestions, and draft candidates.                                                         |
-| Deferred weekly surfaces | Waiver wire and start/sit activate when regular-season data is useful.                                          |
-| Draft                    | Read-only live board and on-demand candidate report; no automated drafting.                                     |
-| Refresh                  | Refresh Sleeper immediately, write SQLite, invalidate reports, and spend no AI turn.                            |
-| Scheduling               | Refresh on launch; later refreshes are manual in v1.                                                            |
-| Retention                | Keep snapshots, reports, and recommendation history indefinitely. Hide a destructive clear control in Settings. |
-| Visuals                  | Player headshots and Sleeper avatars where available; strong monogram fallbacks.                                |
-| Future writes            | Separate opt-in design with confirmations; never an implicit extension of v1.                                   |
+Sleeper Caffeine is a read-only fantasy football front office for managers who want to operate with a disciplined, evidence-backed process.
 
-## 3. Architecture
+It combines:
+
+- Deterministic league, roster, draft, matchup, and transaction data from Sleeper.
+- Live web research through Codex app-server.
+- Opinionated recommendations and credible alternatives.
+- Persistent plans, sources, decisions, and outcomes.
+- A conversational analyst that helps the manager challenge and refine the plan.
+
+The desired feeling is not “AI runs my team” or merely “this saved me time.” It is:
+
+> I understand my league, I am finding overlooked edges, and I am managing this roster like a professional front office.
+
+The first release remains read-only. It never submits a draft pick, changes a lineup, places a waiver claim, or sends or accepts a trade.
+
+## 2. Product principles
+
+1. **The manager initiates meaningful work.** Refreshes and AI runs happen inside the open app. No background scheduling, tray process, or push notifications in this phase.
+2. **Refresh and analysis are different actions.** Refresh fetches and normalizes data without spending an AI turn. Build, Refine, and Regenerate explicitly invoke Codex.
+3. **Recommend and explain.** Every major surface offers a clear current plan plus ranked alternatives and the evidence that separates them.
+4. **One coherent plan per decision context.** Draft advice is bound to a draft board. Weekly advice is bound to a league, season, week, snapshot, and evidence set.
+5. **AI reasons; code enforces.** Deterministic code validates availability, roster rules, lineup legality, claim dependencies, identifiers, freshness, and lifecycle transitions.
+6. **Search is discovery, not evidence.** The app cites the actual pages used and exposes source freshness and uncertainty.
+7. **Plans are durable but revisable.** A manager can complete, dismiss, decline, or supersede recommendations without losing history.
+8. **No activity theatre.** The app encourages deliberate inspection and roster improvement, not transactions for their own sake.
+9. **Each league is its own workspace.** Plans, chat, evidence, decisions, and history do not bleed across leagues.
+10. **Drafting remains first-class.** Weekly management extends the product; it does not replace the draft room or general research tools.
+
+## 3. Two first-class product modes
+
+### Draft and research
+
+Useful before and during drafts:
+
+- League onboarding and roster selection.
+- Roster room and team analysis.
+- Trade research.
+- Live multi-team draft board.
+- Deterministic candidate ranking.
+- Candidate pins/research list.
+- Board-bound Caffeine Plan with a primary target, fallbacks, later-pick strategy, sources, and lifecycle reconciliation.
+- Conversational research scoped to the active league.
+
+The Draft Room stays in navigation after the weekly experience ships. Its empty, scheduled, live, and completed states remain useful for preparation and retrospective review.
+
+### Weekly management
+
+Useful during the regular season:
+
+- A manager-triggered Tuesday plan.
+- Waiver and roster-spot decisions.
+- A weekly competitive-lane assessment.
+- One focused trade-market observation.
+- A Wednesday aftermath review.
+- A Thursday lineup refinement.
+- Weekend inactive, flexibility, and stash checks.
+- A decision checklist and outcome history.
+
+The weekly experience is one evolving `LeagueWeek`, not a collection of unrelated reports.
+
+## 4. Current platform baseline
+
+The following foundation is already implemented and should be preserved:
+
+- pnpm monorepo with Electron, React, TypeScript, and electron-vite.
+- Sandboxed renderer and typed preload/IPC boundary.
+- Internal UI primitives, CSS Modules, semantic tokens, and feature slices.
+- TanStack Query for canonical renderer state and mutations.
+- SQLite snapshots, AI reports, chat history, model settings, and draft pins.
+- Independently usable `sleeper-core` and Sleeper MCP packages.
+- Installed Codex discovery, dedicated `CODEX_HOME`, ChatGPT OAuth, persistent threads, structured outputs, streaming, and live web search.
+- Multi-league onboarding and active-league switching.
+- Front Office, Roster Room, Team Analysis, Trade Lab, Draft Room, Settings, and assistant-ui analyst drawer.
+- Unit, browser, MCP contract, Codex handshake, Storybook, build, and packaged-Electron smoke coverage.
+- macOS/Windows/Linux-aware renderer and packaging foundation.
+
+Existing reports and chat continue to work while the weekly system is introduced incrementally.
+
+## 5. Target architecture
 
 ```mermaid
 flowchart TB
     subgraph Desktop["Electron application"]
-      UI["Sandboxed React renderer"]
+      UI["React renderer"]
       IPC["Typed preload / IPC"]
-      Runtime["Main-process app runtime"]
-      DB["SQLite"]
+      Runtime["Main-process runtime"]
+      Store["SQLite"]
+      Weekly["Weekly decision engine"]
+      Draft["Draft decision engine"]
       UI --> IPC --> Runtime
-      Runtime --> DB
+      Runtime --> Store
+      Runtime --> Weekly
+      Runtime --> Draft
     end
 
-    Runtime --> Core["@sleeper-caffeine/core"]
+    Runtime --> Core["sleeper-core"]
     Runtime --> Codex["Installed codex app-server"]
-    Runtime --> Bridge["Local Streamable HTTP MCP"]
-    Bridge --> Core
-    Core --> Cache["Daily player cache"]
+    Codex --> MCP["Local Sleeper MCP"]
+    MCP --> Core
     Core --> Sleeper["Sleeper public API"]
-    Codex --> Bridge
-    Codex --> Search["Live web search"]
+    Core --> PlayerCache["Daily player cache"]
+    Weekly --> Evidence["Normalized evidence cache"]
+    Draft --> Evidence
+    Codex --> Search["Live web research"]
 ```
 
-### Why the UI does not call MCP
+### Shared decision-engine pattern
 
-MCP is an agent-facing adapter, not the desktop application's internal service boundary. The Electron main process and the MCP bridge both call `sleeper-core`, which prevents protocol overhead and keeps one implementation of caching, joins, validation, retries, and league semantics.
-
-### Why Codex app-server
-
-A long-lived app-server provides managed ChatGPT authentication, native threads, streaming turn events, structured output schemas, MCP configuration, and live search. The desktop owns fantasy data and presentation; Codex owns OpenAI identity and model orchestration.
-
-## 4. Package responsibilities
+Both draft and weekly intelligence follow the same pipeline:
 
 ```text
-apps/desktop
-  Electron lifecycle, SQLite, onboarding, dashboard, reports, chat, settings
-
-packages/sleeper-core
-  Sleeper HTTP client, Zod schemas, cache, identity resolution, fantasy joins
-
-packages/sleeper-mcp
-  MCP registrations, stdio entry point, local Streamable HTTP bridge
-
-packages/ipc-contract
-  Shared renderer/main types, runtime schemas, report JSON schema, channel names
-
-packages/codex-runtime
-  Binary discovery, JSONL JSON-RPC, app-server lifecycle, OAuth, turns
+Fresh deterministic state
+    -> relevant-change detection
+    -> bounded candidate cohort
+    -> focused evidence gathering
+    -> structured AI synthesis
+    -> deterministic validation
+    -> persisted plan and micro-summary
+    -> lifecycle reconciliation after refresh
 ```
 
-## 5. Data model
+Draft and weekly plans may share evidence, identity resolution, source presentation, hashing utilities, and lifecycle conventions. They should retain domain-specific schemas and validation rules.
 
-SQLite tables:
+## 6. The weekly operating model
 
-| Table              | Purpose                                                                   |
-| ------------------ | ------------------------------------------------------------------------- |
-| `leagues`          | Saved league/team identity, active league, latest materialized dashboard. |
-| `league_snapshots` | Immutable dashboard and compact raw-source snapshots.                     |
-| `ai_reports`       | Structured report history and invalidation state.                         |
-| `codex_threads`    | Persistent thread ID by league and purpose.                               |
-| `chat_messages`    | Local conversational analyst history.                                     |
+Every week, Caffeine should help the manager make five decisions:
 
-The daily full player map remains a file cache rather than being copied into every database snapshot.
+1. Best legal starting lineup.
+2. Ranked waiver plan.
+3. One or more roster-spot upgrades.
+4. Current competitive lane.
+5. At least one trade-market observation.
 
-## 6. Codex runtime profile
+The central roster rule is that every player should serve at least one purpose:
 
-Startup configuration:
+- **Start:** belongs in the current lineup or is a legitimate weekly rotation option.
+- **Insure:** directly protects an important starter or scarce position.
+- **Appreciate:** can gain durable dynasty value on a plausible development path.
+- **Pop:** can become dramatically more useful after one plausible event.
 
-```text
-CODEX_HOME=<app user data>/codex-home
-codex app-server --listen stdio:// --strict-config
-  --disable shell_tool
-  -c web_search="live"
-  -c mcp_servers.sleeper_caffeine.url="http://127.0.0.1:<port>/mcp"
-  -c mcp_servers.sleeper_caffeine.required=true
+A player serving none of these purposes becomes an Exit candidate. The app should show this classification and its rationale; it should not pretend the classification is objective truth.
+
+### Weekly cadence
+
+| Phase     | Manager-triggered product job                                                                                                         |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Tuesday   | Build the substantial Weekly Plan: lane, Add Now, Watch, Exit, waiver ladder, roster upgrades, and one market observation.            |
+| Wednesday | Refresh and review waiver outcomes, bids, drops, congestion, and newly free players. Generate a small refinement only when requested. |
+| Thursday  | Build/refine the preliminary lineup, close calls, conditions, and flex-preservation moves.                                            |
+| Friday    | Revisit the market observation and roster portfolio through the current competitive lane.                                             |
+| Saturday  | Identify asymmetric stashes and replace dead bottom-of-roster depth.                                                                  |
+| Sunday    | Run a user-triggered inactive and late-swap sweep.                                                                                    |
+| Monday    | Surface final stash optionality and record observations without encouraging tilt.                                                     |
+
+Days guide the interface but do not hard-lock it. A manager can build or revisit a plan whenever needed.
+
+## 7. Primary weekly domain model
+
+`LeagueWeek` is the durable aggregate for one league, season, and NFL week.
+
+```ts
+type LeagueWeekKey = {
+  leagueId: string;
+  season: string;
+  week: number;
+};
+
+type LeagueWeek = LeagueWeekKey & {
+  phase: "tuesday" | "wednesday" | "thursday" | "weekend" | "complete";
+  latestSnapshotAt: string;
+  currentPlanId: string | null;
+  competitiveLane: "contender" | "retooler" | "uncertain" | null;
+  planStatus:
+    | "not_built"
+    | "current"
+    | "data_changed"
+    | "research_stale"
+    | "superseded";
+  meaningfulChanges: WeeklyChange[];
+  actionSummary: {
+    pending: number;
+    completed: number;
+    dismissed: number;
+  };
+};
 ```
 
-Each thread starts with:
+The lane is reassessed every week. It is a recommendation with reasons, confidence, and contrary evidence—not a permanent team setting.
 
-- `approvalPolicy: "never"`
-- `sandbox: "read-only"`
-- Read-only fantasy analyst instructions.
-- A requirement to call Sleeper MCP before league-specific claims.
-- A requirement to source current football claims from actual pages found through web search.
+### Plan identity and lifecycle
 
-Each turn also applies a read-only sandbox policy with network access so live research is available. Command and file-change approval requests are declined defensively even though shell access is disabled.
+Every persisted weekly plan records:
 
-Thread strategy:
+- `leagueId`, `season`, and `week`.
+- Source snapshot ID and `inputHash`.
+- `evidenceHash` and evidence freshness window.
+- Generation time, model, reasoning effort, prompt version, and schema version.
+- Current lifecycle status and reason.
+- The complete structured plan.
+- A compact micro-summary derived from that plan without new research.
+
+Refreshing Sleeper does not automatically invalidate a plan merely because time advanced. Reconciliation compares material inputs:
+
+- My roster changed.
+- An advised player is no longer available.
+- A relevant transaction occurred.
+- Waiver budget or priority changed.
+- A material injury/status/depth-chart signal changed.
+- The week or league phase changed.
+- Research exceeded its freshness window.
+
+Non-material refreshes leave the plan current. Material changes produce `data_changed` with an explicit list and a manager-triggered **Refine plan** action.
+
+## 8. Target persistence model
+
+Before the first breaking change, replace ad hoc `CREATE TABLE IF NOT EXISTS` evolution with ordered schema migrations using SQLite `user_version` or a dedicated migrations table.
+
+New tables:
+
+| Table                  | Purpose                                                                                         |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `league_weeks`         | One aggregate row per league/season/week, current phase, latest plan, and summarized status.    |
+| `weekly_plan_versions` | Immutable structured plans, hashes, provenance, generation settings, and lifecycle metadata.    |
+| `weekly_actions`       | Trackable recommendations linked to a plan and optional player/roster/transaction identifiers.  |
+| `sleeper_events`       | Deduplicated normalized roster, transaction, waiver, matchup, and status changes.               |
+| `watchlist_entries`    | Persistent player hypotheses, triggers, state, and optional expiry across weeks.                |
+| `evidence_claims`      | Reusable timestamped player/team claims with category, source, URL, effective week, and expiry. |
+| `provider_identities`  | Sleeper player IDs mapped to identifiers required by optional evidence providers.               |
+
+Initial action states:
 
 ```text
-league / report:team_analysis
-league / report:trade_suggestions
-league / report:draft_candidates
+pending
+completed
+dismissed
+declined
+failed
+not_possible
+observed_in_sleeper
+superseded
+```
+
+`observed_in_sleeper` is a reconciliation hint, not an assertion of intent. The UI asks the manager to confirm completion when a matching roster or transaction change is detected.
+
+Dismissal may include an optional reason. Regeneration receives relevant dispositions so it does not immediately repeat a declined trade or dismissed claim unless material evidence changed.
+
+## 9. Deterministic data plane
+
+An explicit Refresh should fetch and normalize, where applicable:
+
+- League, scoring, roster, flex, taxi, reserve, waiver, and FAAB settings.
+- Every roster and manager, including record, points, waiver position, and budget used.
+- Current and recent matchup data.
+- Current-week transactions with full settings and metadata, including waiver bids and failure context when present.
+- Drafts, picks, and traded picks.
+- Trending additions and drops.
+- The daily player directory without discarding useful status, injury, search-rank, experience, or depth-chart fields.
+- The active draft board when a draft exists.
+
+The resulting immutable raw snapshot must include the matchup and transaction inputs used by analysis, not only the materialized dashboard.
+
+Derived local calculations:
+
+- Snapshot-to-snapshot changes.
+- Roster additions, drops, trades, and ownership changes.
+- Remaining FAAB and waiver priority.
+- League standings and points ranks.
+- Maximum/optimal points when sufficient player-point data exists; otherwise expose it as unavailable.
+- Position and roster congestion.
+- Initial roster-purpose signals.
+- Available-player candidate scores.
+- Valid add/drop pairings and contingency conflicts.
+- Legal lineup assignments in the later Thursday slice.
+
+Code must degrade explicitly when Sleeper does not expose a value. Missing maximum points or projections should never be filled with an invented number.
+
+## 10. Evidence and research plane
+
+The open-source product should work with Sleeper plus Codex live web research. A deterministic ranking provider is an enhancement, not a prerequisite.
+
+Evidence is stored as claims rather than unstructured copied articles:
+
+```ts
+type EvidenceClaim = {
+  id: string;
+  leagueId: string | null;
+  playerId: string | null;
+  category: "usage" | "role" | "injury" | "market" | "matchup" | "projection";
+  claim: string;
+  metricName: string | null;
+  metricValue: number | null;
+  sourceTitle: string;
+  sourceUrl: string | null;
+  sourceType: "sleeper" | "web" | "provider";
+  fetchedAt: string;
+  effectiveWeek: number | null;
+  expiresAt: string | null;
+};
+```
+
+Rules:
+
+- Reuse fresh evidence across Tuesday, Thursday, Draft Room, reports, and chat.
+- Surface conflicting claims instead of silently selecting one.
+- Prefer first-party team/NFL sources for definitive injury or roster news.
+- Do not scrape subscription sites or bypass authentication.
+- Add optional licensed/free projections or rankings later through an adapter contract.
+- Keep source links collapsed by default beneath concise rationale.
+
+## 11. Codex orchestration
+
+The app continues to use its installed `codex app-server` process, isolated `CODEX_HOME`, read-only sandbox, `approvalPolicy: never`, local Sleeper MCP, and live web search.
+
+Weekly work uses purpose-specific threads such as:
+
+```text
+league / season / week / weekly-plan
+league / season / week / lineup-refinement
 league / conversation
 ```
 
-Structured report turns use an output JSON schema and validate the final JSON again with Zod before persistence.
+Thread memory is conversational context, not source-of-truth data. Every generation carries the current immutable context and evidence identities.
 
-## 7. Sleeper data behavior
+### Cost and effort policy
 
-The fixed upstream is `https://api.sleeper.app/v1`. Supported reads include leagues, users, rosters, matchups, transactions, drafts, picks, traded picks, brackets, NFL state, trending players, and the NFL player directory.
+- **Tuesday:** one substantial, manager-triggered synthesis plus a small editorial micro-summary.
+- **Wednesday:** no AI by default; offer a focused refinement if meaningful new data exists.
+- **Thursday:** one focused, manager-triggered lineup pass, researching only unresolved close calls.
+- **Chat:** unlimited manager-triggered exploration using the selected model and effort.
+- **Regenerate:** always available and always explicit.
 
-The player directory:
+The first implementation can use the user-selected model for all turns. Separate “deep plan” and “quick editorial” model settings should be added only if measurements show a meaningful quality, latency, or quota benefit.
 
-- Is fetched at most daily during normal use.
-- Is validated before replacement.
-- Uses atomic disk writes.
-- Coalesces concurrent refreshes.
-- Falls back to a valid stale copy with an explicit warning.
-- Is never returned wholesale to Codex.
-
-“Available player” means absent from every current roster. It does not imply waiver clearance, lock status, or eligibility.
-
-## 8. User flows
-
-### League onboarding
-
-1. Paste a Sleeper league URL or numeric league ID.
-2. Fetch league, users, and rosters.
-3. Present every owned roster with team/avatar/record context.
-4. Select “my team.”
-5. Persist league ID, roster ID, and user ID.
-6. Materialize the first dashboard snapshot.
-
-### Refresh
-
-1. Read current Sleeper league state immediately.
-2. Reuse or refresh the player cache.
-3. Build a compact dashboard and draft view.
-4. Append a snapshot.
-5. Mark existing reports stale.
-6. Do not invoke Codex.
-
-### Generate a report
-
-1. Require a current dashboard and ChatGPT login.
-2. Resume the report-specific Codex thread or create it.
-3. Tell Codex the league/user/roster identifiers.
-4. Require the relevant Sleeper MCP tools.
-5. Allow live web search for current context.
-6. Stream progress into the UI.
-7. Validate the final structured result.
-8. Persist the report against the snapshot timestamp.
-
-### Conversational analyst
-
-Chat uses a league-specific persistent thread and local message history. Every prompt carries the active league identity; base instructions still require fresh Sleeper tool results for league-specific claims.
-
-## 9. Security boundaries
-
-- No Sleeper credentials are requested or stored.
-- OpenAI tokens remain inside the dedicated Codex home.
-- The renderer receives account email/plan/status only, never tokens.
-- Inherited `OPENAI_API_KEY`, `CODEX_API_KEY`, and `CODEX_ACCESS_TOKEN` are removed from the child environment.
-- The renderer has context isolation, sandboxing, no Node integration, and a narrow preload API.
-- External links must be HTTPS and open in the system browser.
-- The local MCP listens on loopback only.
-- The initial local MCP has no bearer token by design; the data is the same public read-only fantasy data shown in the app.
-- Content Security Policy restricts scripts, connections, fonts, and image hosts.
-- Any future authenticated browser automation requires a new threat model and design review.
-
-## 10. Completed implementation
-
-- [x] Commit the original standalone MCP as the baseline (`a5ed90d`).
-- [x] Convert to a pnpm monorepo.
-- [x] Extract `sleeper-core` and preserve the standalone MCP CLI.
-- [x] Add a session-aware Streamable HTTP MCP bridge.
-- [x] Add typed IPC contracts and constrained report schemas.
-- [x] Add installed-Codex discovery and app-server JSONL supervision.
-- [x] Add dedicated-home ChatGPT login flow.
-- [x] Add live web search and read-only runtime configuration.
-- [x] Add SQLite migrations, snapshots, reports, threads, and chat history.
-- [x] Add multi-league onboarding and switching.
-- [x] Add dashboard, roster, report, trade, draft, weekly placeholders, and settings.
-- [x] Add player/avatar imagery with fallbacks.
-- [x] Add per-card generation and stale-report handling.
-- [x] Add deterministic manual refresh and launch refresh.
-- [x] Add a board-aware draft baseline, researched Caffeine Plans, and persisted candidate pins.
-- [x] Replace the custom analyst transcript with assistant-ui, structured Markdown, streaming state, and paginated local history.
-- [x] Add unit, MCP contract, live Sleeper, and Codex handshake coverage.
-- [x] Add open-source documentation and CI.
-
-## 11. Release checklist
-
-- [x] Add application icon assets for macOS, Windows, and Linux.
-- [ ] Produce and manually inspect unsigned packages on all target platforms.
-- [ ] Add release signing/notarization when maintainership credentials exist.
-- [ ] Add screenshots/GIFs to the GitHub README.
-- [ ] Validate ChatGPT browser login from a clean packaged application.
-- [ ] Validate a complete structured AI report after login.
-- [ ] Add database schema-version migrations before the first breaking schema change.
-- [ ] Publish the repository and enable CI branch protection.
-
-## 12. Next phase: renderer foundation
+## 12. Tuesday vertical slice
 
 ### Objective
 
-Turn the implemented renderer into a maintainable desktop application foundation before adding waiver, start/sit, and other major features.
+Replace the Waivers placeholder with the first complete regular-season workflow. Starting from a freshly refreshed league, the manager can explicitly build, review, act on, dismiss, and regenerate a coherent Tuesday Weekly Plan.
 
-This phase will:
+This slice must feel useful even before third-party projections or automated scheduling exist.
 
-- Replace the monolithic renderer with feature-oriented React boundaries.
-- Establish a small internal UI system using CSS Modules and semantic custom-property tokens.
-- Move Electron/SQLite async state onto a deliberate TanStack Query data layer.
-- Add real-browser component and interaction coverage.
-- Normalize typography, spacing, focus behavior, dialogs, drawers, and form controls.
-- Remove implicit macOS assumptions so Windows and Linux can be supported without redesigning the renderer.
+### Scope
 
-Pixel-for-pixel preservation is not a constraint. The existing product identity should remain recognizable, but shared components may normalize spacing, typography, color usage, and interaction behavior as each surface migrates.
+Included:
 
-### Decisions
+- Current-week deterministic context and meaningful-change detection.
+- Weekly competitive lane with reasons and uncertainty.
+- Ranked Add Now, Watch, and Exit lists.
+- A contingent waiver ladder with add, drop, FAAB range, priority, and alternatives.
+- Roster-purpose audit for the manager’s roster.
+- One focused trade-market observation with options.
+- Concise rationale with expandable sources.
+- Durable action checklist and dispositions.
+- Regenerate and Refine semantics.
+- Front Office teaser and Weekly Plan page.
+- Analyst chat awareness of the current weekly plan.
 
-| Area                 | Decision                                                                                                     |
-| -------------------- | ------------------------------------------------------------------------------------------------------------ |
-| UI system            | Keep it internal under `apps/desktop/src/renderer/components/ui`; do not create a public workspace package.  |
-| Styling              | CSS Modules for components/features; custom properties for global semantic tokens.                           |
-| Token source         | Begin with hand-maintained `tokens.css`; do not add token-generation tooling until another consumer exists.  |
-| Async renderer state | Use TanStack Query for bootstrap reads and IPC mutations.                                                    |
-| Streaming chat state | Keep assistant-ui's external runtime for run-scoped conversational streaming.                                |
-| Local UI state       | Keep state close to features; use reducers/discriminated unions for multi-step flows.                        |
-| Storybook            | Add after the first stable primitives; commit stories and verify its build in CI, but do not host it yet.    |
-| Accessibility        | Build sound semantics, focus behavior, and reduced-motion support into primitives; no formal WCAG audit yet. |
-| Platform target      | Desktop only, with renderer and shell behavior designed for macOS, Windows, and Linux.                       |
-| Migration style      | Incremental vertical slices that remain runnable and testable after every merge.                             |
+Not included:
 
-### Target renderer structure
+- Submitting claims or trades.
+- Background refresh, scheduling, tray behavior, or push notifications.
+- Full Wednesday reconciliation UI.
+- Start/sit optimization or Sunday inactive checks.
+- Mandatory paid projections or ranking providers.
+- AI summaries for the entire available-player universe.
 
-```text
-apps/desktop/src/renderer/
-  app/
-    App.tsx
-    AppProviders.tsx
-    AppShell.tsx
-    query-client.ts
-    runtime-events.ts
+### Entry states
 
-  api/
-    caffeine-client.ts
-    query-keys.ts
-    queries.ts
-    mutations.ts
+The Weekly Plan page supports:
 
-  components/ui/
-    Avatar/
-    Badge/
-    Button/
-    Dialog/
-    Drawer/
-    Field/
-    Icon/
-    IconButton/
-    Panel/
-    Select/
-    Spinner/
-    StatusDot/
+1. **Unsupported/preseason:** explain that weekly data is not active; link to Draft Room and Team Analysis.
+2. **Ready to refresh:** no current snapshot for the active week.
+3. **Ready to build:** current deterministic data exists; primary CTA is **Build my plan**.
+4. **Building:** stream stage-oriented progress without rendering raw JSON or source payloads.
+5. **Current:** show the complete plan and checklist.
+6. **Data changed:** keep the plan readable, show exactly what changed, and offer **Refine plan**.
+7. **Research stale:** distinguish old evidence from changed Sleeper data and offer **Regenerate**.
+8. **Failed:** preserve the last successful plan and present a retryable error.
+9. **Signed out:** keep deterministic context visible and offer ChatGPT login for plan generation.
 
-  features/
-    assistant/
-    draft/
-    front-office/
-    leagues/
-    onboarding/
-    reports/
-    roster/
-    settings/
-
-  styles/
-    tokens.css
-    reset.css
-    globals.css
-```
-
-`packages/ipc-contract` remains the renderer/main contract boundary. Feature components must not import Electron APIs directly; all IPC access goes through the typed renderer client and query/mutation hooks.
-
-### Token model
-
-Tokens use three layers:
-
-1. Primitive values: palettes, font families, raw dimensions.
-2. Semantic roles: canvas, surfaces, text, borders, actions, statuses, focus, and motion.
-3. Component decisions: control heights, panel padding, drawer width, title-bar height, and similar reusable measurements.
-
-Required token groups:
+### Manager flow
 
 ```text
-color       canvas, surfaces, text, borders, actions, statuses
-typography  families, sizes, weights, line heights, tracking
-space       one consistent spacing scale
-size        controls, icons, avatars, app chrome
-radius      controls, cards, panels, overlays
-shadow      raised controls, menus, drawers, dialogs
-motion      duration and easing, with reduced-motion overrides
-layer       base, navigation, menu, drawer, dialog, notification
+Open active league
+  -> Refresh data
+  -> Review “What changed” summary
+  -> Build my plan
+  -> Read recommended plan
+  -> Compare credible alternatives
+  -> Inspect sources as needed
+  -> Mark actions complete, dismissed, declined, failed, or not possible
+  -> Refresh later
+  -> Confirm Sleeper-observed actions
+  -> Refine only if useful
 ```
 
-Typography guardrails:
+### Page information architecture
 
-- `10px` is the absolute floor for metadata.
-- `12px` is the floor for ordinary body copy.
-- Interactive controls should normally use at least `14px` labels.
-- Font sizes and line heights use semantic tokens rather than page-specific values.
+#### Header
 
-Raw colors, shadows, radii, and spacing values should not be introduced in CSS Modules when an appropriate semantic token exists. Deliberate one-off data visualization colors must be documented beside the rule.
+- `WEEK N · TUESDAY PLAN`
+- Latest Sleeper refresh time.
+- Plan/evidence freshness state.
+- **Refresh data** secondary action.
+- **Build my plan**, **Refine plan**, or **Regenerate** primary action depending on state.
 
-### TanStack Query integration
+#### Plan brief
 
-The Electron main process and SQLite own canonical application data. The renderer treats the preload API as an asynchronous server-state boundary even though it uses IPC rather than HTTP.
+- Conclusion-led headline.
+- Two-sentence executive summary.
+- Competitive-lane badge, confidence, supporting reasons, and contrary evidence.
+- “Based on” row showing snapshot, research time, model, and source count.
 
-Default query behavior:
+#### Five-decision scorecard
+
+Always expose the state of:
+
+1. Lineup — “Thursday pass not built yet” in this slice.
+2. Waivers — count of ranked claims.
+3. Roster upgrades — count of actionable upgrades.
+4. Competitive lane — contender/retooler/uncertain.
+5. Market — one active observation.
+
+This connects Tuesday to the eventual whole-week operating system without pretending the Thursday work is complete.
+
+#### Current plan
+
+An ordered checklist of opinionated recommendations. Each item shows:
+
+- A direct action headline.
+- Priority and action type.
+- Player(s), roster spot, and FAAB range when applicable.
+- Concise rationale.
+- Confidence and key uncertainty.
+- Expandable sources.
+- Complete, dismiss, declined, failed, and not-possible controls where relevant.
+
+#### Waiver ladder
+
+A structured table or stacked list:
+
+```text
+Priority  Add                  Drop                 Bid             Why
+1         Player A             Exit candidate 1     8–12%           Immediate role + roster fit
+2         Player B             Exit candidate 1     3–6%            Upside alternative
+3         Player C             Exit candidate 2     $0–2%           Speculative churn
+```
+
+Claims sharing the same drop player form a visible contingency group. The UI warns when the proposed sequence is impossible under known roster settings.
+
+FAAB uses both percentage of the league’s starting budget and a calculated absolute range. Recommendations account for remaining budget; they are not hardcoded to a $1,000 league.
+
+#### Other good options
+
+Show credible alternatives rather than hiding them behind chat:
+
+- Why each alternative is not the primary recommendation.
+- What manager preference or new evidence would make it preferable.
+- The cost/risk difference versus the current plan.
+
+#### Add Now / Watch / Exit
+
+- **Add Now:** players whose usefulness probability materially increased.
+- **Watch:** hypothesis plus the next observable trigger.
+- **Exit:** the manager’s least purposeful roster spots, in drop order.
+
+Exit players show their current Start/Insure/Appreciate/Pop classifications—or explicitly show that none apply.
+
+#### Market observation
+
+One focused idea, not a batch of generic offers:
+
+- Opportunity and likely partner/archetype.
+- Recommended action, such as ask, offer, list, or monitor.
+- One or two alternate approaches.
+- Checklist state including `declined` and optional note.
+- Link to a deeper Trade Lab conversation/report.
+
+#### Evidence drawer
+
+Sources are collapsed by default and grouped by recommendation. Each entry shows title, claim supported, source type, and freshness. Analytics may appear inside rationale without requiring a separate dense analytics dashboard.
+
+### Deterministic Tuesday context
+
+Before invoking Codex, build and validate a bounded `TuesdayContext`:
 
 ```ts
-new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: Infinity,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      retry: false,
-    },
-    mutations: {
-      retry: false,
-    },
-  },
-});
+type TuesdayContext = {
+  key: LeagueWeekKey;
+  snapshotId: string;
+  inputHash: string;
+  capturedAt: string;
+  league: {
+    scoring: unknown;
+    rosterPositions: string[];
+    waiverType: string | null;
+    faabStartingBudget: number | null;
+    teams: number;
+  };
+  myTeam: {
+    rosterId: number;
+    record: unknown;
+    standingsRanks: unknown;
+    faabRemaining: number | null;
+    waiverPosition: number | null;
+    players: unknown[];
+    rosterPurposeBaseline: unknown[];
+  };
+  leagueTable: unknown[];
+  recentMatchups: unknown[];
+  recentTransactions: unknown[];
+  meaningfulChanges: WeeklyChange[];
+  addCandidates: unknown[];
+  exitCandidates: unknown[];
+  previousPlan: {
+    planId: string;
+    dispositions: unknown[];
+  } | null;
+};
 ```
 
-Runtime-event behavior:
+The exact IPC schema should use explicit Zod objects rather than the `unknown` placeholders above.
 
-| Runtime event       | Renderer behavior                                                        |
-| ------------------- | ------------------------------------------------------------------------ |
-| `bootstrap_changed` | Invalidate the bootstrap query.                                          |
-| `codex_status`      | Update the matching status inside cached bootstrap data.                 |
-| `mcp_status`        | Update the matching status inside cached bootstrap data.                 |
-| Chat run events     | Feed the assistant-ui run adapter; persist only completed message rows.  |
-| Draft changes       | Invalidate or update the active dashboard without regenerating AI cards. |
+### Candidate funnel
 
-Each operation receives its own mutation key and state. Refreshing Sleeper, generating a report, changing AI settings, switching a league, toggling a candidate pin, logging in, and clearing data must no longer share a single global `busy` string.
+Avoid researching hundreds of players:
 
-Mutation success should prefer returned canonical `Bootstrap` data when available. Otherwise, it should invalidate the narrowest affected query. AI-generating mutations are never automatically retried.
+1. Begin with players absent from all current rosters.
+2. Apply position eligibility and league-format relevance.
+3. Score locally using Sleeper search rank, trending adds/drops, injury/status, positional scarcity, roster fit, youth/upside signals, and plausible upgrade over Exit candidates.
+4. Keep approximately 25–40 plausible candidates for the local UI.
+5. Build a research cohort of approximately 8–15 players, with position diversity and explicit inclusion of manager-pinned/watchlist players.
+6. Ask Codex to deeply compare only that cohort.
 
-### Internal UI primitives
+The deterministic score is a funnel, not the final recommendation. AI may promote or demote a candidate, but it must explain meaningful differences from the baseline.
 
-The first primitive set is intentionally small:
+### Structured Tuesday output
 
-| Primitive    | Responsibilities                                                                |
-| ------------ | ------------------------------------------------------------------------------- |
-| `Button`     | Variants, sizes, loading, disabled state, icons, and safe default button type.  |
-| `IconButton` | Accessible label, tooltip/title, target size, loading, and focus state.         |
-| `Panel`      | Surface level, border treatment, padding, and optional interactive state.       |
-| `Badge`      | Neutral, accent, live, stale, warning, error, and success statuses.             |
-| `Avatar`     | Image loading, fallback monogram, size variants, and consistent cropping.       |
-| `Dialog`     | Backdrop, focus containment/restoration, Escape handling, and labelled content. |
-| `Drawer`     | Dialog behavior plus side placement, sizing, scroll containment, and animation. |
-| `Field`      | Label, description, validation message, and stable control association.         |
-| `Select`     | Shared sizing, focus, disabled state, and cross-platform native behavior.       |
-| `Spinner`    | Shared loading indicator with reduced-motion behavior.                          |
-| `StatusDot`  | Runtime/live/stale/error state without page-specific color duplication.         |
+The contract should be domain-specific rather than extending the generic report schema:
 
-Primitives own interaction and accessibility behavior. Feature components own fantasy-football meaning and layout. A component should not be extracted only to shorten a file.
+```ts
+type TuesdayPlanOutput = {
+  headline: string;
+  summary: string;
+  confidence: "low" | "medium" | "high";
+  competitiveLane: {
+    lane: "contender" | "retooler" | "uncertain";
+    confidence: "low" | "medium" | "high";
+    reasons: string[];
+    contraryEvidence: string[];
+  };
+  actions: TuesdayActionOutput[];
+  waiverClaims: Array<{
+    priority: number;
+    addPlayerId: string;
+    dropPlayerId: string | null;
+    contingencyGroup: string;
+    faabPercentMin: number | null;
+    faabPercentTarget: number | null;
+    faabPercentMax: number | null;
+    rationale: string;
+    confidence: "low" | "medium" | "high";
+  }>;
+  addNow: PlayerRecommendation[];
+  watch: Array<PlayerRecommendation & { trigger: string }>;
+  exit: Array<
+    PlayerRecommendation & {
+      dropRank: number;
+      rosterPurposes: Array<"start" | "insure" | "appreciate" | "pop">;
+    }
+  >;
+  rosterAudit: RosterPurposeAssessment[];
+  marketObservation: {
+    headline: string;
+    recommendation: string;
+    partnerRosterIds: number[];
+    alternatives: string[];
+    rationale: string;
+  };
+  alternatives: PlanAlternative[];
+  sources: EvidenceSource[];
+  uncertainties: string[];
+  refreshTriggers: string[];
+};
+```
 
-### Execution plan
+Validation after generation must ensure:
 
-#### Milestone 1 — guardrails and scaffolding
+- Every player ID exists in the frozen context.
+- Every Add Now/waiver player is still available in that snapshot.
+- Every drop player is on the manager’s roster and is not duplicated incompatibly.
+- Claim priorities are unique and consecutive.
+- FAAB values are ordered, non-negative, and valid for league settings.
+- Recommended roster IDs exist.
+- Sources use valid URLs when present.
+- The model does not claim to have submitted any action.
 
-- [x] Add React Hooks linting with the recommended rule set.
-- [x] Add JSX accessibility linting with an intentionally documented initial rule baseline.
-- [x] Configure Vitest Browser Mode with Playwright for renderer tests.
-- [x] Add a typed preload mock/test harness shared by browser component tests and Storybook.
-- [ ] Capture baseline screenshots for onboarding, front office, draft room, reports, settings, and analyst drawer.
-- [x] Create the target directories without moving features prematurely.
-- [x] Add `tokens.css`, `reset.css`, and `globals.css`; initially bridge existing variables to the new semantic names.
+### AI generation stages
 
-Exit criteria:
+1. Freeze the `TuesdayContext` and calculate `inputHash`.
+2. Call a new/expanded Sleeper MCP weekly-context tool to verify the league facts visible to Codex.
+3. Search the web only for the research cohort and decision-relevant team context.
+4. Request one `TuesdayPlanOutput` structured response.
+5. Validate and enrich it with canonical player/team objects.
+6. Persist the plan, sources, and actions atomically.
+7. Run a no-tools editorial condensation for the Front Office micro-summary.
+8. Re-fetch/reconcile the dashboard before presenting the result so changes during a long turn are visible.
 
-- Existing unit, contract, and desktop tests remain green.
-- A minimal browser test renders the desktop shell with a mocked preload API.
-- Token introduction causes no required visual regression.
+Raw streamed JSON or tool payloads must never be rendered as plan prose. During generation, the UI shows stable stages such as “Reading league,” “Researching candidates,” and “Building contingencies.”
 
-#### Milestone 2 — renderer data layer
+### Front Office integration
 
-- [x] Add `@tanstack/react-query` and the app-level query provider.
-- [x] Wrap every preload method in `api/caffeine-client.ts`.
-- [x] Define stable query and mutation keys.
-- [x] Move bootstrap loading into a query hook.
-- [x] Route runtime events through one app-level subscription and the query client.
-- [x] Convert league switching, refresh, login/logout, settings, report generation, pinning, and clear-data operations to mutations.
-- [x] Remove the global `busy` string and global `act()` helper.
-- [x] Keep assistant streaming in its existing assistant-ui adapter.
+The Intelligence Desk gains a Weekly Plan card:
 
-Exit criteria:
+- Empty: “Build your Week N plan.”
+- Current: micro-headline, two-line summary, lane badge, action count, freshness, and **Open plan**.
+- Changed: material-change count and **Review changes**.
+- Stale: evidence age and **Regenerate**.
 
-- No feature component calls `window.sleeperCaffeine` directly.
-- Independent operations expose independent pending and error states.
-- Duplicate or out-of-order bootstrap reloads cannot overwrite newer cached data.
-- Refresh still spends no AI turn; report regeneration remains explicit.
+Draft intelligence remains present whenever the league has a pending/live/recent draft. Front Office can prioritize Draft Room during an active draft and Weekly Plan during the regular season without removing either surface.
 
-#### Milestone 3 — tokens and primitives
+### Analyst integration
 
-- [x] Finish semantic color, typography, space, size, radius, shadow, motion, and layer tokens.
-- [x] Bundle application fonts locally.
-- [x] Implement the initial UI primitives and their CSS Modules.
-- [x] Add visible focus styles and reduced-motion behavior to primitives.
-- [x] Add Storybook once `Button`, `Panel`, `Badge`, `Avatar`, `Dialog`, and `Drawer` are stable.
-- [ ] Add stories for every supported variant and important loading/error state.
-- [x] Add Storybook's static build to CI without deploying it.
+Chat receives the active league/week and current plan ID. It can explain, compare, or challenge the plan. If chat produces a better decision, the UI should eventually offer an explicit **Add to plan** or **Replace recommendation** action; chat must not silently mutate the persisted plan in the first slice.
 
-Exit criteria:
+### IPC and package changes
 
-- New feature CSS uses semantic tokens rather than raw design values.
-- Shared buttons, panels, statuses, form controls, overlays, avatars, and spinners use primitives.
-- Storybook builds from a clean checkout.
-- No migrated body copy is smaller than the typography floor.
+Expected additions:
 
-#### Milestone 4 — feature migration
+```text
+packages/ipc-contract
+  LeagueWeekSchema
+  TuesdayContextSchema
+  TuesdayPlanOutputSchema
+  WeeklyPlanSchema
+  WeeklyActionSchema
+  weekly IPC channels and runtime events
 
-Migrate complete vertical slices rather than mechanically splitting files:
+packages/sleeper-core
+  weekly-context.ts
+  snapshot-diff.ts
+  transaction-normalization.ts
+  roster-purpose-baseline.ts
+  waiver-candidate-ranking.ts
 
-1. Onboarding: reducer-based flow, `Dialog`, fields, team picker, and browser tests.
-2. App shell: navigation, top bar, league switcher, runtime status, and platform-aware chrome.
-3. Reports and intelligence desk: teasers, report layout, sources, generation states, and actions.
-4. Front office: campaign summary, matchup, depth chart, and shared report cards.
-5. Roster and settings: player presentation, account controls, storage controls, and confirmation behavior.
-6. Draft room: board, live intelligence, candidate pool, research list, and pure candidate selectors.
-7. Assistant: retain assistant-ui behavior while migrating drawer, composer, messages, and Markdown styles onto shared tokens/primitives.
+packages/sleeper-mcp
+  get_weekly_context tool
+  complete transaction/FAAB output
 
-Each vertical slice must:
+apps/desktop/src/main
+  migrations/
+  weekly-plan.ts
+  weekly-reconciliation.ts
+  weekly-evidence.ts
+  store methods for weeks/plans/actions/evidence
 
-- Move JSX into its feature directory.
-- Move styles into CSS Modules.
-- Replace direct IPC calls with queries/mutations.
-- Add interaction coverage for its main user path, loading state, empty state, and error state.
-- Delete the migrated global CSS and old component implementation in the same change.
+apps/desktop/src/renderer/features/weekly
+  WeeklyPlanPage
+  PlanHeader
+  FiveDecisionScorecard
+  ActionChecklist
+  WaiverLadder
+  CandidateLists
+  CompetitiveLane
+  MarketObservation
+  EvidenceDrawer
+```
 
-Exit criteria:
+The existing generic `ai_reports` table can continue to serve Team Analysis and Trade Lab during this slice. Weekly plans should use the new domain tables.
 
-- `app/App.tsx` is composition and routing only, with no fantasy feature implementation.
-- Global CSS contains only tokens, reset, app-wide typography, and truly global Electron chrome rules.
-- Draft ranking/filtering selectors are pure functions with deterministic tests.
-- Onboarding and overlays have consistent focus, close, and error behavior.
+### Test plan
 
-#### Milestone 5 — cross-platform hardening
+#### Unit/domain
 
-- [x] Add a typed platform value to the preload contract.
-- [x] Isolate draggable window regions and title-bar spacing in the app shell.
-- [x] Define platform-aware title-bar and traffic-light/window-control behavior.
-- [ ] Verify native select, scrolling, font rendering, focus, and keyboard behavior on macOS, Windows, and Linux.
-- [x] Define and enforce minimum supported window dimensions.
-- [x] Add unsigned Windows and Linux package builds to CI or a documented release validation workflow.
-- [x] Run browser component tests at representative compact and full desktop viewports.
-- [x] Add a packaged Electron smoke suite for launch, preload IPC, navigation, and platform chrome.
+- Snapshot diff emits stable, deduplicated changes.
+- Transaction normalization preserves waiver bids and metadata.
+- Remaining FAAB uses league settings correctly.
+- Candidate funnel excludes rostered/ineligible players and remains deterministic.
+- Contingency groups never produce impossible simultaneous drops.
+- Output validation rejects unknown players, rosters, invalid bids, and duplicate priorities.
+- Plan reconciliation distinguishes no change, material change, research staleness, and a new week.
+- Action disposition transitions are explicit and valid.
 
-Exit criteria:
+#### Store/migrations
 
-- No feature layout depends on macOS traffic-light placement.
-- The renderer remains usable at the documented minimum window size and increased font scaling.
-- Unsigned packages build successfully for each target platform.
+- Upgrade an existing database without losing leagues, reports, chat, or draft plans.
+- Persist/reload every weekly schema.
+- Keep immutable plan history across regeneration.
+- Cascade league deletion through new tables.
+- Clear-local-data removes all weekly data.
 
-#### Milestone 6 — cleanup and enforcement
+#### Runtime
 
-- [x] Remove obsolete global selectors for migrated feature slices.
-- [x] Add lint rules or a lightweight check that prevents direct renderer IPC access outside the client layer.
-- [x] Document component, token, query, mutation, and feature conventions for contributors.
-- [x] Add a short architecture section to the README with the renderer directory map.
-- [ ] Review bundle composition and add lazy feature loading only if measurement shows a material startup benefit.
-- [ ] Evaluate React Compiler only after component boundaries and linting are stable.
+- Refresh spends no Codex turn.
+- Build produces one plan plus one micro-summary.
+- Failed micro-summary does not discard a valid full plan.
+- A board or roster change during generation is reconciled before display.
+- Dismissed/declined actions are included in regeneration context.
+- Signed-out and unavailable-Codex states preserve deterministic data.
 
-Exit criteria:
+#### Renderer/browser
 
-- Typecheck, lint, unit tests, browser tests, Storybook build, and Electron production build all pass in CI.
-- The old monolithic `App.tsx` and `styles.css` no longer contain feature implementations.
-- Contributors have one documented path for building UI, reading app data, running mutations, and adding tests.
+- Build from the ready state and render progress safely.
+- Render plan plus alternatives, waiver ladder, sources, and lane.
+- Mark, dismiss, and decline actions.
+- Show changed-data and stale-research states.
+- Keep the previous successful plan visible after an error.
+- Link to Trade Lab, Draft Room, and analyst chat.
+- Remain usable at the supported minimum desktop size.
 
-### Test strategy
+#### Fixtures
 
-The renderer will use three layers of coverage:
+Cover at least:
 
-1. Pure unit tests for selectors, reducers, token helpers, and message adaptation.
-2. Vitest Browser Mode tests for component behavior, focus, forms, filtering, loading, and errors.
-3. A small Electron smoke suite for preload integration, launch, navigation, and platform chrome.
+- FAAB and rolling-waiver leagues.
+- Redraft, keeper, dynasty, superflex, and TE-premium formats.
+- Taxi and IR rosters.
+- No available maximum-points data.
+- No worthwhile waiver candidates.
+- Player already rostered between build and display.
+- Zero remaining FAAB.
+- Empty transaction week.
+- A declined trade idea that must not immediately recur.
 
-Initial critical browser paths:
+### Tuesday vertical-slice acceptance criteria
 
-- Complete onboarding from league input through team selection.
-- Switch active league and observe canonical dashboard data.
-- Refresh Sleeper without generating a report.
-- Generate and regenerate each report surface.
-- Open, stream, complete, and reopen an analyst conversation.
-- Filter, expand, and pin a draft candidate.
-- Close dialogs and drawers through their visible controls, backdrop policy, and Escape.
-- Render empty, stale, disconnected, signed-out, error, and loading states.
+- A regular-season manager can refresh and explicitly build a Week N plan.
+- No AI turn occurs during refresh, launch, navigation, or action-state changes.
+- The plan contains a recommended course and credible alternatives.
+- The plan includes lane, Add Now, Watch, Exit, waiver contingencies, roster-purpose audit, and one market observation.
+- Every referenced player and roster resolves to canonical frozen context.
+- Every material current claim has an inspectable source or is labeled as Sleeper-derived.
+- The manager can track and dismiss recommendations without losing history.
+- Refresh reconciles the plan and explains material changes without regenerating it.
+- Front Office exposes a useful micro-summary and freshness state.
+- Draft Room, draft plan generation, candidate pins, Team Analysis, Trade Lab, and chat continue to pass their existing tests.
+- Typecheck, lint, unit tests, browser tests, Storybook build, production build, and packaged smoke suite remain green.
 
-Storybook stories are fixtures and documentation, not a replacement for user-path tests.
+### Implementation sequence
 
-### Migration guardrails
+#### PR 1 — migrations and richer Sleeper snapshots
 
-- Keep the application runnable after every milestone and feature slice.
-- Preserve the typed preload boundary and renderer sandbox.
-- Do not move fantasy-domain calculations into presentation components.
-- Do not introduce Redux or a second general-purpose client-state store beside TanStack Query.
-- Do not move assistant streaming into TanStack Query.
-- Do not add automatic Sleeper refreshes or automatic AI turns as a side effect of this refactor.
-- Do not change the read-only product boundary.
-- Do not publish or separately version the internal UI system during this phase.
-- Do not require pixel-level visual preservation when shared tokens and components improve consistency.
+- Add ordered schema migrations.
+- Preserve matchups, full transactions, settings, metadata, trending adds/drops, and richer player attributes.
+- Add transaction normalization and snapshot-diff tests.
+- Do not add AI or new UI yet.
 
-### Definition of done
+#### PR 2 — weekly domain and deterministic inspection
 
-This phase is complete when:
+- Add `LeagueWeek`, context, changes, baseline candidate, roster-purpose, and persistence schemas.
+- Add a developer-facing fixture/inspection route or test harness.
+- Add `get_weekly_context` to the MCP.
+- Validate deterministic output across league formats.
 
-- Renderer features are organized by product domain and no longer implemented inside one application file.
-- Async canonical state uses typed queries/mutations and runtime events update or invalidate the cache deliberately.
-- Shared interface behavior comes from the internal primitive set.
-- Feature CSS is locally scoped and consumes semantic tokens.
-- Typography and spacing are consistent and meet the agreed readability floors.
-- Critical renderer interactions run in a real browser during CI.
-- Storybook documents the stable primitive states and builds in CI.
-- The app shell no longer assumes macOS and unsigned builds can be produced for all target desktop platforms.
-- Existing Sleeper, MCP, Codex, SQLite, reports, draft plans, and assistant behavior remain intact.
+#### PR 3 — Tuesday generation and lifecycle
 
-## 13. Later phases
+- Add the structured Codex prompt and schema.
+- Validate/enrich/persist plans and actions.
+- Add plan hashes, source freshness, regeneration, and reconciliation.
+- Add micro-summary generation.
 
-### Regular season
+#### PR 4 — Weekly Plan product surface
 
-- Waiver candidate ranking using real availability, usage, injury, and role signals.
-- Start/sit comparisons with matchup, weather, injury, and flex-rule context.
-- Recommendation outcomes and weekly retrospectives.
+- Replace the Waivers placeholder with Weekly Plan.
+- Build the plan brief, scorecard, checklist, waiver ladder, candidate lists, lane, market observation, and sources.
+- Add action dispositions and Front Office integration.
+- Add browser tests and Storybook fixtures for all states.
 
-### Draft improvements
+#### PR 5 — hardening
 
-- Optional short-interval board polling while the draft room is open.
-- Pick-trade-aware upcoming slots.
+- Exercise a real public test league and opt-in live Codex run.
+- Tune cohort size, prompt, validation messages, and progress stages.
+- Verify packaged Electron behavior and migration from an existing local database.
+- Update README screenshots and contributor documentation.
+
+## 13. Draft Room commitment and roadmap
+
+The Draft Room is not deprecated by the weekly plan. It remains the product’s primary preseason and live-draft workspace.
+
+### Preserve these invariants
+
+- A multi-team grid showing completed picks and current ownership.
+- Slow drafts remain live when picks exist even if Sleeper still reports the draft as `pre_draft`.
+- Commissioner undo and non-contiguous upstream state resolve to the first genuinely open pick instead of corrupting the board.
+- Correct handling of traded picks and upcoming owned selections.
+- A deterministic candidate baseline that remains useful without ChatGPT login.
+- A bounded research cohort rather than whole-pool AI summaries.
+- Primary target, approved fallbacks, later-pick strategies, and ranking rationale.
+- Board/input hashes and plan lifecycle reconciliation.
+- Explicit Refresh versus Regenerate actions.
+- Candidate pins/research list that forces research inclusion without changing deterministic rank.
+- Read-only language and behavior.
+
+Auction drafts remain explicitly unsupported until they receive a separate budget-oriented design. They should not be forced into the linear/snake board model.
+
+### Season handoff
+
+Draft completion should connect the two product modes without erasing either one:
+
+1. Preserve the final board, completed Caffeine Plan, and selected-player outcomes.
+2. Seed Week 1 roster-purpose and watchlist candidates from drafted players and pinned research targets.
+3. Mark preseason evidence with its original freshness/effective date rather than presenting it as current-week truth.
+4. Offer **Build Week 1 outlook** when useful regular-season data becomes available.
+5. Keep Draft Room accessible for retrospective review, rookie drafts, and the manager's other leagues.
+
+### Next draft improvements
+
+- Optional short-interval polling only while Draft Room is open, with an explicit toggle and no AI turn.
 - Tier and positional-run detection.
-- Candidate regeneration that incorporates the most recent pick without refreshing unrelated reports.
+- Better pick-trade-aware target windows.
+- A “What changed since this plan?” summary using the shared diff model.
+- Reuse fresh player evidence from preseason Team Analysis, Draft Room, and chat.
+- Draft-plan action history and retrospective review after completion.
+- Better empty/scheduled/completed draft research states for leagues not currently on the clock.
 
-### Evidence adapters
+Draft improvements can proceed alongside later weekly phases once the Tuesday data spine is stable. Shared identity/evidence work should be implemented once and consumed by both tracks.
 
-- Deterministic projection/ranking ingestion where terms and licensing permit it.
-- Player identity reconciliation across providers.
-- Source freshness and contradiction surfacing.
-- The Athletic links where discoverable, without bypassing authentication or paywalls.
+## 14. Later weekly vertical slices
 
-### Write automation
+### Wednesday aftermath
 
-Out of scope until a separate proposal defines authentication, browser isolation, confirmations, audit logs, reversibility, failure handling, and an explicit per-action opt-in. Read-only v1 code must not quietly grow write paths.
+- Reconcile submitted/observed roster changes against Tuesday actions.
+- Show claims won/lost, bid amounts, surprising spend, and important drops.
+- Detect free pickups, overreaction drops, and new roster congestion.
+- Promote watchlist hypotheses when triggers occur.
+- Offer an explicit small refinement rather than a new full plan.
+
+### Thursday lineup
+
+- Add schedules, start times, lock status, and optional projection adapters.
+- Build a deterministic legal lineup optimizer.
+- Identify only true close calls for targeted research.
+- Generate conditional advice and flex-preservation moves.
+- Persist lineup actions inside the same `LeagueWeek`.
+
+### Weekend execution
+
+- User-triggered inactive sweep.
+- Late-game flexibility checks.
+- Saturday, Sunday, and Monday stash candidates.
+- No background notification system in the initial implementation.
+
+### Outcomes and evaluation
+
+- Record recommendation dispositions and Sleeper-observed outcomes.
+- Compare recommended, actual, and optimal lineups where data permits.
+- Track waiver outcomes and recommendation confidence.
+- Add historical fixture replay and prompt/schema regression tests.
+- Evaluate source freshness, calibration, and discovery quality rather than raw transaction count.
+
+## 15. Security and product boundaries
+
+- No Sleeper password or authenticated browser session.
+- OpenAI tokens remain inside the app-owned Codex home.
+- No arbitrary shell or filesystem tools in the fantasy runtime.
+- Renderer remains sandboxed behind typed IPC.
+- MCP stays read-only and loopback-only inside the app.
+- Web sources are attributed and subscription boundaries are respected.
+- No future write automation without a separate threat model, confirmation design, audit trail, failure model, and explicit opt-in.
+
+## 16. Release and repository work that remains
+
+- The unsigned macOS package and its real preload, migration, navigation, and native-chrome paths are covered by the packaged smoke suite. Repeat platform-native inspection on Windows and Linux before publishing those artifacts.
+- Add signing/notarization when maintainer credentials exist.
+- Validate ChatGPT login and a complete structured generation from a clean packaged app.
+- Add current screenshots/GIFs to the README.
+- Publish the repository and enable CI branch protection.
+- Keep `STRATEGY_GUIDE.md` as product rationale and clearly distinguish observational activity benchmarks from causal claims.
+
+## 17. Definition of success
+
+This phase succeeds when a manager can open any saved regular-season league, refresh it, deliberately build a trustworthy Tuesday plan, understand both the recommendation and alternatives, track what they chose to do, and return later to see what materially changed—while the live Draft Room and research experience remain fully useful.
+
+The product should feel like one front office with two complementary time horizons:
+
+- **Draft Room:** construct the roster intelligently.
+- **Weekly Command Center:** manage and compound that roster intelligently.

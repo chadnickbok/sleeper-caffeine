@@ -11,11 +11,15 @@ The first release is intentionally safe: it cannot change a lineup, submit a wai
 - A polished dashboard, full roster room, reserve/taxi handling, headshots, and fallbacks.
 - Manual Sleeper refresh with an immutable local snapshot history.
 - A live draft board with completed picks, traded ownership, upcoming slots, and a deterministic candidate baseline.
-- Board-bound Caffeine Plans with researched rankings, fallbacks, lifecycle states, and one coherent deep briefing.
+- Optional 15-second draft-room polling, positional-run and tier signals, candidate pins, and board-change explanations without an AI turn.
+- Board-bound Caffeine Plans with researched rankings, fallbacks, lifecycle states, and a preserved final-board archive.
+- A regular-season Weekly Command Center built around one durable league/week plan rather than disconnected reports.
+- An explicit Tuesday **Build my plan** pass with competitive lane, waiver contingencies, Add/Watch/Exit, roster-purpose audit, alternatives, trade-market observation, sources, and a decision checklist.
+- A zero-AI Wednesday aftermath, plus focused manager-triggered Thursday lineup and weekend execution briefings.
+- Persistent action dispositions, immutable plan/brief history, evidence freshness, material-change reconciliation, and draft-to-Week-1 watchlist handoff.
 - On-demand AI cards for team analysis and trade ideas.
 - A persistent conversational analyst scoped to the active league.
 - Live web research with an explicit distinction between search/discovery and cited sources.
-- Waiver and weekly start/sit surfaces marked for activation when regular-season data is meaningful.
 - A standalone Sleeper MCP server over stdio and an app-managed Streamable HTTP bridge.
 
 ## Product principles
@@ -26,13 +30,14 @@ The first release is intentionally safe: it cannot change a lineup, submit a wai
 4. **Search is not a source.** Search discovers material. Reports cite the page actually used.
 5. **Read-only means read-only.** No Sleeper credentials, browser cookies, shell access, or hidden roster mutations.
 6. **Local by default.** League snapshots, reports, recommendation history, chat, and the isolated Codex home live on the user's machine.
+7. **One evolving weekly plan.** Tuesday, Wednesday, Thursday, and the weekend share one persisted league/week context and never silently rewrite the manager's decisions.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     Renderer["Electron renderer"] -->|typed IPC| Main["Electron main process"]
-    Main --> Store["SQLite snapshots + reports"]
+    Main --> Store["SQLite snapshots + plans + evidence + decisions"]
     Main --> Core["sleeper-core"]
     Main --> Codex["Installed codex app-server"]
     Codex -->|Streamable HTTP| MCP["Sleeper MCP bridge"]
@@ -76,7 +81,7 @@ renderer/
   app/            providers, query cache, runtime events, shell
   api/            sole typed preload/IPC client and data hooks
   components/ui/  reusable internal primitives and CSS Modules
-  features/       onboarding, assistant, draft, reports, roster, settings
+  features/       onboarding, assistant, draft, weekly, reports, roster, settings
   styles/         semantic tokens, reset, and global Electron chrome
 ```
 
@@ -106,6 +111,13 @@ pnpm --filter @sleeper-caffeine/desktop test:browser
 pnpm --filter @sleeper-caffeine/desktop storybook:build
 ```
 
+After packaging for the current platform, exercise the packaged preload,
+migrations, navigation, and native chrome:
+
+```bash
+pnpm --filter @sleeper-caffeine/desktop test:smoke:packaged
+```
+
 Package the current platform:
 
 ```bash
@@ -133,14 +145,15 @@ codex mcp add sleeper -- node /absolute/path/to/sleeper-caffeine/packages/sleepe
 
 Tools:
 
-| Tool                    | Purpose                                                        |
-| ----------------------- | -------------------------------------------------------------- |
-| `get_draft_snapshot`    | Live picks, traded ownership, board hash, and remaining picks. |
-| `get_team_snapshot`     | Settings, joined roster, matchup, and traded-pick context.     |
-| `get_available_players` | Players absent from every current league roster.               |
-| `get_matchup_context`   | Both sides of a weekly matchup with joined players.            |
-| `get_trade_context`     | Every roster, traded picks, drafts, and selected transactions. |
-| `get_league_history`    | Linked historical seasons and obtainable champions.            |
+| Tool                    | Purpose                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `get_draft_snapshot`    | Live picks, traded ownership, board hash, and remaining picks.                             |
+| `get_team_snapshot`     | Settings, joined roster, matchup, and traded-pick context.                                 |
+| `get_available_players` | Players absent from every current league roster.                                           |
+| `get_matchup_context`   | Both sides of a weekly matchup with joined players.                                        |
+| `get_trade_context`     | Every roster, traded picks, drafts, and selected transactions.                             |
+| `get_league_history`    | Linked historical seasons and obtainable champions.                                        |
+| `get_weekly_context`    | Joined weekly state, FAAB, matchups, transactions, trends, and a bounded candidate cohort. |
 
 Sleeper's player directory is cached for 24 hours. “Available” means absent from current rosters; it does not prove waiver clearance or lineup eligibility.
 
@@ -175,10 +188,9 @@ See [SECURITY.md](./SECURITY.md) for reporting and trust boundaries.
 
 ## Roadmap
 
-- Regular-season waiver and start/sit intelligence.
-- Optional short-interval live-draft polling while the room is open.
-- Recommendation outcomes and retrospective scoring.
+- Historical recommendation calibration and richer retrospective scoring.
 - Additional projections/rankings adapters with clear licensing boundaries.
+- Tray/background scheduling and opt-in notifications only after the pull-based experience is proven.
 - Cross-platform release signing and auto-update infrastructure.
 - Any future Sleeper write automation only as a separately designed, opt-in capability with explicit confirmations.
 

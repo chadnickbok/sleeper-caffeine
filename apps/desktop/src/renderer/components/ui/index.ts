@@ -6,6 +6,7 @@ export * from "./Drawer/Drawer.js";
 export * from "./Field/Field.js";
 export * from "./Icon/Icon.js";
 export * from "./IconButton/IconButton.js";
+export * from "./OverflowMenu/OverflowMenu.js";
 export * from "./Panel/Panel.js";
 export * from "./Select/Select.js";
 export * from "./Spinner/Spinner.js";

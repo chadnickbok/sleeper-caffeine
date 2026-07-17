@@ -22,8 +22,10 @@ export const PlayerSummarySchema = z.object({
   status: z.string().nullable(),
   injury_status: z.string().nullable(),
   depth_chart_order: z.number().nullable(),
+  depth_chart_position: z.union([z.string(), z.number()]).nullable().optional(),
   years_exp: z.number().nullable(),
   search_rank: z.number().nullable(),
+  number: z.union([z.number(), z.string()]).nullable().optional(),
 });
 
 export type PlayerSummary = z.infer<typeof PlayerSummarySchema>;

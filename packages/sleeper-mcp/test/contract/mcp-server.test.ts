@@ -6,7 +6,7 @@ import { createServer } from "../../src/mcp/create-server.js";
 import { createFixtureDependencies } from "../helpers.js";
 
 describe("MCP server contract", () => {
-  it("advertises exactly the six read-only tools and returns structured content", async () => {
+  it("advertises exactly the seven read-only tools and returns structured content", async () => {
     const server = createServer(await createFixtureDependencies());
     const client = new Client({ name: "contract-test", version: "1.0.0" });
     const [clientTransport, serverTransport] =
@@ -23,6 +23,7 @@ describe("MCP server contract", () => {
         "get_matchup_context",
         "get_team_snapshot",
         "get_trade_context",
+        "get_weekly_context",
       ]);
       for (const tool of listed.tools) {
         expect(tool.annotations).toMatchObject({
@@ -70,6 +71,46 @@ describe("MCP server contract", () => {
               { pick_no: 2, player_id: "p3", player_name: "Carla Receiver" },
             ],
             remaining_owned_pick_numbers: [4, 5, 8],
+          },
+        },
+      });
+
+      const weeklyResult = CallToolResultSchema.parse(
+        await client.callTool({
+          name: "get_weekly_context",
+          arguments: {
+            league_id: "12345",
+            roster_id: 1,
+            week: 3,
+            recent_matchup_weeks: 1,
+            candidate_limit: 10,
+          },
+        }),
+      );
+      expect(weeklyResult.isError).not.toBe(true);
+      expect(weeklyResult.structuredContent).toMatchObject({
+        source: "sleeper",
+        data: {
+          key: { league_id: "12345", season: "2026", week: 3 },
+          my_team: { roster_id: 1, faab: { remaining: 90 } },
+          recent_matchups: [
+            {
+              week: 3,
+              matchups: [
+                { roster_id: 1, optimal_lineup: null },
+                { roster_id: 2, optimal_lineup: null },
+              ],
+            },
+          ],
+          current_week_transactions: {
+            normalized: [
+              { transaction_id: "tx1" },
+              { transaction_id: "tx2", faab_bid: 17 },
+            ],
+          },
+          trending: {
+            adds: [{ player_id: "p4" }, { player_id: "p6" }],
+            drops: [{ player_id: "p6" }, { player_id: "p4" }],
           },
         },
       });

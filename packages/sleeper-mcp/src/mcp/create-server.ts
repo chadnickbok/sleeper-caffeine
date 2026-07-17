@@ -8,10 +8,12 @@ import {
   getMatchupContext,
   getTeamSnapshot,
   getTradeContext,
+  getWeeklyContext,
   LeagueHistoryInputSchema,
   MatchupContextInputSchema,
   TeamSnapshotInputSchema,
   TradeContextInputSchema,
+  WeeklyContextInputSchema,
   type DomainDependencies,
 } from "@sleeper-caffeine/core";
 import { runTool } from "./response.js";
@@ -22,6 +24,7 @@ import {
   MatchupContextOutputSchema,
   TeamSnapshotOutputSchema,
   TradeContextOutputSchema,
+  WeeklyContextOutputSchema,
 } from "./schemas.js";
 
 const READ_ONLY_ANNOTATIONS = {
@@ -130,6 +133,26 @@ export function createServer(dependencies: DomainDependencies): McpServer {
         () => getTradeContext(dependencies, input),
         () =>
           "Loaded league rosters, traded picks, drafts, and requested transactions.",
+      ),
+  );
+
+  server.registerTool(
+    "get_weekly_context",
+    {
+      title: "Get Sleeper weekly management context",
+      description:
+        "Get one manager's joined roster plus every league roster, recent matchups, complete current-week transactions, FAAB and standings context, Sleeper trending adds and drops, and a bounded deterministic available-player cohort. Use this before weekly waiver, roster, or market advice.",
+      inputSchema: WeeklyContextInputSchema,
+      outputSchema: WeeklyContextOutputSchema,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    (input) =>
+      runTool(
+        () => getWeeklyContext(dependencies, input),
+        (data) => {
+          const key = data["key"] as Record<string, unknown>;
+          return `Loaded weekly context for week ${String(key["week"])}.`;
+        },
       ),
   );
 

@@ -11,6 +11,22 @@
     "adds": { "p3": 1, "p2": 2 },
     "drops": null,
     "draft_picks": [],
-    "waiver_budget": []
+    "waiver_budget": [],
+    "settings": { "commissioner": 0 },
+    "metadata": { "note": "fixture trade" }
+  },
+  {
+    "transaction_id": "tx2",
+    "type": "waiver",
+    "status": "failed",
+    "created": 1780000002000,
+    "status_updated": 1780000003000,
+    "roster_ids": [1],
+    "adds": { "p4": 1 },
+    "drops": { "p2": 1 },
+    "draft_picks": [],
+    "waiver_budget": [],
+    "settings": { "waiver_bid": 17, "sequence": 1 },
+    "metadata": { "notes": "Player was no longer available" }
   }
 ]
