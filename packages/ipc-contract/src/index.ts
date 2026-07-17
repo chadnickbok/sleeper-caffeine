@@ -23,6 +23,9 @@ export const DEFAULT_AI_SETTINGS = {
   effort: "low",
 } as const;
 
+export const DesktopPlatformSchema = z.enum(["darwin", "win32", "linux"]);
+export type DesktopPlatform = z.infer<typeof DesktopPlatformSchema>;
+
 export const ReportKindSchema = z.enum([
   "team_analysis",
   "trade_suggestions",
@@ -401,6 +404,7 @@ export const ChatHistoryPageSchema = z.object({
 export type ChatHistoryPage = z.infer<typeof ChatHistoryPageSchema>;
 
 export const BootstrapSchema = z.object({
+  platform: DesktopPlatformSchema,
   leagues: z.array(SavedLeagueSchema),
   activeDashboard: DashboardSchema.nullable(),
   reports: z.array(AiReportSchema),

@@ -1,0 +1,22 @@
+.root {
+  width: var(--size-control-md);
+  height: var(--size-control-md);
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.root:hover:not(:disabled) {
+  border-color: var(--color-action-primary);
+  color: var(--color-action-bright);
+}
+
+.root:disabled {
+  cursor: default;
+  opacity: 0.4;
+}

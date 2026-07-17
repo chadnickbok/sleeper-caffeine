@@ -1,0 +1,88 @@
+:root {
+  color-scheme: dark;
+
+  --palette-navy-950: #07131f;
+  --palette-navy-900: #0b1925;
+  --palette-navy-850: #0d1d2b;
+  --palette-navy-800: #11273a;
+  --palette-neutral-50: #f1f0ec;
+  --palette-neutral-100: #eae6d7;
+  --palette-slate-400: #98a5b3;
+  --palette-slate-500: #687586;
+  --palette-cyan-400: #36ced3;
+  --palette-cyan-500: #03adba;
+  --palette-purple-400: #9b87ff;
+  --palette-red-400: #ff796f;
+
+  --color-surface-canvas: var(--palette-navy-950);
+  --color-surface-drawer: var(--palette-navy-900);
+  --color-surface-panel: var(--palette-navy-850);
+  --color-surface-elevated: var(--palette-navy-800);
+  --color-text-primary: var(--palette-neutral-50);
+  --color-text-secondary: var(--palette-slate-400);
+  --color-text-tertiary: var(--palette-slate-500);
+  --color-border-subtle: rgba(54, 206, 211, 0.12);
+  --color-action-primary: var(--palette-cyan-500);
+  --color-action-bright: var(--palette-cyan-400);
+  --color-status-danger: var(--palette-red-400);
+  --color-status-accent: var(--palette-purple-400);
+  --color-focus-ring: rgba(54, 206, 211, 0.58);
+
+  --font-family-body: Manrope, ui-sans-serif, system-ui, sans-serif;
+  --font-family-mono: "DM Mono", ui-monospace, monospace;
+  --font-size-metadata: 0.625rem;
+  --font-size-body-sm: 0.75rem;
+  --font-size-body: 0.875rem;
+  --font-size-control: 0.875rem;
+  --line-height-body: 1.55;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-pill: 999px;
+  --shadow-overlay: 0 24px 80px rgba(0, 0, 0, 0.42);
+
+  --motion-fast: 120ms;
+  --motion-normal: 220ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  --layer-navigation: 20;
+  --layer-menu: 40;
+  --layer-drawer: 90;
+  --layer-dialog: 100;
+  --layer-notification: 120;
+
+  --size-sidebar: 238px;
+  --size-titlebar: 48px;
+  --size-control-sm: 2rem;
+  --size-control-md: 2.5rem;
+
+  /* Compatibility aliases removed as feature CSS migrates. */
+  --ink: var(--color-text-primary);
+  --muted: var(--color-text-secondary);
+  --faint: var(--color-text-tertiary);
+  --line: var(--color-border-subtle);
+  --panel: var(--color-surface-panel);
+  --panel-2: var(--color-surface-elevated);
+  --green: var(--color-action-primary);
+  --green-2: var(--color-action-bright);
+  --purple: var(--color-status-accent);
+  --cream: var(--palette-neutral-100);
+  --danger: var(--color-status-danger);
+  --sidebar: var(--size-sidebar);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-normal: 0ms;
+  }
+}

@@ -69,6 +69,19 @@ packages/
 
 The desktop and MCP use the same `sleeper-core`; the UI never calls the MCP as an internal API.
 
+The React renderer is organized around an internal design system and feature slices:
+
+```text
+renderer/
+  app/            providers, query cache, runtime events, shell
+  api/            sole typed preload/IPC client and data hooks
+  components/ui/  reusable internal primitives and CSS Modules
+  features/       onboarding, assistant, draft, reports, roster, settings
+  styles/         semantic tokens, reset, and global Electron chrome
+```
+
+Canonical renderer state uses TanStack Query with explicit IPC mutations. Runtime events update or invalidate that cache; assistant-ui continues to own partial chat streaming. See [the renderer conventions](./apps/desktop/src/renderer/README.md) before adding a UI surface.
+
 ## Requirements
 
 - Node.js 22 or newer.
@@ -87,6 +100,8 @@ Production build:
 
 ```bash
 pnpm build
+pnpm --filter @sleeper-caffeine/desktop test:browser
+pnpm --filter @sleeper-caffeine/desktop storybook:build
 ```
 
 Package the current platform:

@@ -1,0 +1,40 @@
+.root {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid
+    color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--color-surface-canvas);
+  background: linear-gradient(
+    145deg,
+    var(--color-action-primary),
+    var(--color-action-bright)
+  );
+  font-weight: 800;
+}
+
+.root img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.small {
+  width: 2.125rem;
+  height: 2.125rem;
+  font-size: var(--font-size-metadata);
+}
+
+.medium {
+  width: 2.625rem;
+  height: 2.625rem;
+  font-size: var(--font-size-body-sm);
+}
+
+.large {
+  width: 3.25rem;
+  height: 3.25rem;
+  font-size: var(--font-size-body);
+}

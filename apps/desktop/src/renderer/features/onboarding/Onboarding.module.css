@@ -1,0 +1,278 @@
+.dialog.dialog {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(22rem, 42%) minmax(0, 1fr);
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface-canvas);
+}
+
+.close {
+  position: absolute;
+  z-index: 2;
+  top: var(--space-6);
+  right: var(--space-6);
+}
+
+.art {
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid var(--color-border-subtle);
+  background:
+    radial-gradient(circle at 22% 28%, rgb(54 206 211 / 18%), transparent 30%),
+    linear-gradient(145deg, #10283a, #0a1927);
+}
+
+.art::after {
+  position: absolute;
+  width: 85%;
+  aspect-ratio: 1;
+  left: 58%;
+  top: 73%;
+  border: 1px solid rgb(54 206 211 / 18%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2.5rem rgb(54 206 211 / 4%),
+    0 0 0 5rem rgb(54 206 211 / 3%);
+  content: "";
+}
+
+.badge {
+  position: absolute;
+  top: 13%;
+  left: 50%;
+  width: clamp(7.5rem, 12vw, 10rem);
+  transform: translateX(-50%);
+}
+
+.copy {
+  position: absolute;
+  top: 35%;
+  left: 15.75%;
+  width: min(70%, 25rem);
+}
+
+.eyebrow {
+  color: var(--color-action-bright);
+  font: 500 var(--font-size-metadata) / 1.4 var(--font-family-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.copy h2,
+.formPanel h3 {
+  color: var(--color-text-primary);
+  letter-spacing: -0.045em;
+}
+
+.copy h2 {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: clamp(2.25rem, 4vw, 3.25rem);
+  line-height: 1.03;
+}
+
+.copy p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.formPanel {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.connectForm,
+.teamStep {
+  position: absolute;
+  left: 13.25%;
+  width: min(74%, 45rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.connectForm {
+  top: 31%;
+}
+
+.teamStep {
+  top: 16%;
+  bottom: 8%;
+}
+
+.formPanel h3 {
+  margin: var(--space-2) 0 0;
+  font-size: clamp(2rem, 3.2vw, 2.5rem);
+  line-height: 1.2;
+}
+
+.formPanel p {
+  margin: var(--space-2) 0 var(--space-8);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.connectForm input {
+  width: 100%;
+  height: 3.375rem;
+  padding: 0 var(--space-4);
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  background: #091724;
+  font: 400 var(--font-size-body) / 1.4 var(--font-family-mono);
+}
+
+.connectForm input:focus {
+  outline: 3px solid rgb(54 206 211 / 10%);
+  border-color: var(--color-focus-ring);
+}
+
+.primaryAction {
+  width: 100%;
+  min-height: 3.125rem;
+  margin-top: var(--space-4);
+  font-size: 1rem;
+}
+
+.steps {
+  position: absolute;
+  top: 6.5%;
+  right: 8.67%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.steps span {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 50%;
+  color: var(--color-text-tertiary);
+  font: var(--font-size-metadata) var(--font-family-mono);
+}
+
+.steps span.complete {
+  border-color: var(--color-action-primary);
+  color: var(--color-surface-canvas);
+  background: var(--color-action-primary);
+}
+
+.steps i {
+  width: 1.375rem;
+  height: 1px;
+  background: var(--color-border-subtle);
+}
+
+.teamGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(3.25rem, 1fr));
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+.team,
+.teamSelected {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  background: var(--color-surface-drawer);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
+}
+
+.team:hover,
+.teamSelected {
+  border-color: rgb(54 206 211 / 40%);
+  background: rgb(54 206 211 / 7%);
+}
+
+.teamCopy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.teamCopy strong,
+.teamCopy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teamCopy strong {
+  font-size: var(--font-size-body-sm);
+}
+
+.teamCopy small {
+  margin-top: 0.125rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-metadata);
+}
+
+.radio {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-text-tertiary);
+  border-radius: 50%;
+}
+
+.teamSelected .radio {
+  border: 3px solid var(--color-surface-canvas);
+  background: var(--color-action-primary);
+  box-shadow: 0 0 0 1px var(--color-action-primary);
+}
+
+.error {
+  margin-top: var(--space-2);
+  color: var(--color-status-danger);
+  font-size: var(--font-size-body-sm);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 56rem) {
+  .dialog.dialog {
+    grid-template-columns: minmax(16rem, 36%) minmax(0, 1fr);
+  }
+
+  .copy {
+    left: 10%;
+    width: 80%;
+  }
+
+  .copy p {
+    font-size: var(--font-size-body);
+  }
+
+  .connectForm,
+  .teamStep {
+    left: 8%;
+    width: 84%;
+  }
+}

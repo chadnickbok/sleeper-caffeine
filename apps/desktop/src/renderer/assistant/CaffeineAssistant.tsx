@@ -15,6 +15,7 @@ import type {
   CodexStatus,
 } from "@sleeper-caffeine/ipc-contract";
 import { useCallback, useMemo, useState } from "react";
+import { caffeineClient } from "../api/caffeine-client.js";
 import { MarkdownText } from "./MarkdownText.js";
 
 type RunStatus = "running" | "complete" | "failed";
@@ -71,12 +72,11 @@ export function CaffeineAssistant({
     if (!first || loadingOlder) return;
     setLoadingOlder(true);
     try {
-      const page: ChatHistoryPage =
-        await window.sleeperCaffeine.loadChatHistory({
-          leagueId,
-          before: { createdAt: first.createdAt, id: first.id },
-          limit: 50,
-        });
+      const page: ChatHistoryPage = await caffeineClient.loadChatHistory({
+        leagueId,
+        before: { createdAt: first.createdAt, id: first.id },
+        limit: 50,
+      });
       setOlderMessages((current) => mergeMessages(page.messages, current));
       setHasMore(page.hasMore);
     } finally {

@@ -24,7 +24,9 @@ function createWindow(): BrowserWindow {
     height: 930,
     minWidth: 1050,
     minHeight: 720,
-    titleBarStyle: "hiddenInset",
+    ...(process.platform === "darwin"
+      ? { titleBarStyle: "hiddenInset" as const }
+      : {}),
     backgroundColor: "#0c100e",
     show: false,
     webPreferences: {

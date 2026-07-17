@@ -1,9 +1,7 @@
 import {
   useCallback,
-  useEffect,
   useState,
   type CSSProperties,
-  type FormEvent,
   type ReactNode,
 } from "react";
 import type {
@@ -15,7 +13,6 @@ import type {
   Dashboard,
   DraftCandidateView,
   DraftPlan,
-  LeaguePreview,
   PlayerView,
   ReportKind,
   RuntimeEvent,
@@ -23,10 +20,23 @@ import type {
 import { REPORT_STALE_AFTER_MS } from "@sleeper-caffeine/ipc-contract";
 import sleeperCaffeineBadge from "./assets/sleeper-caffeine-badge.svg";
 import sleeperCaffeineMascot from "./assets/sleeper-caffeine-mascot.svg";
+import { caffeineClient } from "./api/caffeine-client.js";
 import {
-  CaffeineAssistant,
+  useBootstrapQuery,
+  useCaffeineCommands,
+  type CaffeinePendingState,
+} from "./api/use-caffeine-runtime.js";
+import { useRuntimeEvents } from "./app/use-runtime-events.js";
+import { Icon, type IconName } from "./components/ui/index.js";
+import {
+  AnalystDrawer,
   type CaffeineChatRun,
-} from "./assistant/CaffeineAssistant.js";
+} from "./features/assistant/AnalystDrawer.js";
+import { Onboarding } from "./features/onboarding/Onboarding.js";
+import {
+  selectLivePlanRecommendations,
+  selectVisibleDraftCandidates,
+} from "./features/draft/candidate-selectors.js";
 
 type Page =
   | "home"
@@ -38,16 +48,20 @@ type Page =
   | "lineup"
   | "settings";
 
-const NAV: Array<{ page: Page; label: string; icon: string; badge?: string }> =
-  [
-    { page: "home", label: "Front office", icon: "grid" },
-    { page: "roster", label: "Roster", icon: "users" },
-    { page: "analysis", label: "Team analysis", icon: "pulse" },
-    { page: "trades", label: "Trade lab", icon: "swap" },
-    { page: "draft", label: "Draft room", icon: "target" },
-    { page: "waivers", label: "Waiver wire", icon: "spark", badge: "W1" },
-    { page: "lineup", label: "Start / sit", icon: "bolt", badge: "W1" },
-  ];
+const NAV: Array<{
+  page: Page;
+  label: string;
+  icon: IconName;
+  badge?: string;
+}> = [
+  { page: "home", label: "Front office", icon: "grid" },
+  { page: "roster", label: "Roster", icon: "users" },
+  { page: "analysis", label: "Team analysis", icon: "pulse" },
+  { page: "trades", label: "Trade lab", icon: "swap" },
+  { page: "draft", label: "Draft room", icon: "target" },
+  { page: "waivers", label: "Waiver wire", icon: "spark", badge: "W1" },
+  { page: "lineup", label: "Start / sit", icon: "bolt", badge: "W1" },
+];
 
 const FALLBACK_CODEX_MODELS: CodexModel[] = [
   {
@@ -107,113 +121,69 @@ const FALLBACK_CODEX_MODELS: CodexModel[] = [
 ];
 
 export function App() {
-  const [data, setData] = useState<Bootstrap | null>(null);
+  const bootstrap = useBootstrapQuery();
+  const commands = useCaffeineCommands();
   const [page, setPage] = useState<Page>("home");
   const [onboarding, setOnboarding] = useState(false);
   const [analystOpen, setAnalystOpen] = useState(false);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [chatRun, setChatRun] = useState<CaffeineChatRun | null>(null);
-
-  const reload = useCallback(async () => {
-    try {
-      const next = await window.sleeperCaffeine.bootstrap();
-      setData(next);
-      if (!next.activeDashboard) setOnboarding(true);
-    } catch (cause) {
-      setError(messageOf(cause));
-    }
+  const handleChatEvent = useCallback((event: RuntimeEvent) => {
+    if (event.type === "chat_started")
+      setChatRun({
+        leagueId: event.leagueId,
+        runId: event.runId,
+        userMessage: event.userMessage,
+        delta: "",
+        status: "running",
+        assistantMessage: null,
+        error: null,
+      });
+    if (event.type === "chat_delta")
+      setChatRun((current) =>
+        current?.leagueId === event.leagueId && current.runId === event.runId
+          ? { ...current, delta: current.delta + event.text }
+          : current,
+      );
+    if (event.type === "chat_completed")
+      setChatRun((current) =>
+        current?.leagueId === event.leagueId && current.runId === event.runId
+          ? {
+              ...current,
+              status: "complete",
+              assistantMessage: event.assistantMessage,
+              error: null,
+            }
+          : current,
+      );
+    if (event.type === "chat_failed")
+      setChatRun((current) =>
+        current?.leagueId === event.leagueId && current.runId === event.runId
+          ? { ...current, status: "failed", error: event.error }
+          : current,
+      );
   }, []);
+  useRuntimeEvents(handleChatEvent);
 
-  useEffect(() => {
-    void reload();
-    return window.sleeperCaffeine.onRuntimeEvent((event: RuntimeEvent) => {
-      if (event.type === "bootstrap_changed") void reload();
-      if (event.type === "codex_status")
-        setData((current) =>
-          current ? { ...current, codex: event.status } : current,
-        );
-      if (event.type === "mcp_status")
-        setData((current) =>
-          current ? { ...current, mcp: event.status } : current,
-        );
-      if (event.type === "chat_started")
-        setChatRun({
-          leagueId: event.leagueId,
-          runId: event.runId,
-          userMessage: event.userMessage,
-          delta: "",
-          status: "running",
-          assistantMessage: null,
-          error: null,
-        });
-      if (event.type === "chat_delta")
-        setChatRun((current) =>
-          current?.leagueId === event.leagueId && current.runId === event.runId
-            ? { ...current, delta: current.delta + event.text }
-            : current,
-        );
-      if (event.type === "chat_completed")
-        setChatRun((current) =>
-          current?.leagueId === event.leagueId && current.runId === event.runId
-            ? {
-                ...current,
-                status: "complete",
-                assistantMessage: event.assistantMessage,
-                error: null,
-              }
-            : current,
-        );
-      if (event.type === "chat_failed")
-        setChatRun((current) =>
-          current?.leagueId === event.leagueId && current.runId === event.runId
-            ? { ...current, status: "failed", error: event.error }
-            : current,
-        );
-    });
-  }, [reload]);
+  const data = bootstrap.data ?? null;
+  const error =
+    commands.error ?? (bootstrap.error ? messageOf(bootstrap.error) : null);
 
   const active = data?.activeDashboard ?? null;
   const report = (kind: ReportKind) =>
     data?.reports.find((candidate) => candidate.kind === kind) ?? null;
 
-  async function act(key: string, operation: () => Promise<unknown>) {
-    setBusy(key);
-    setError(null);
-    try {
-      await operation();
-      await reload();
-    } catch (cause) {
-      setError(messageOf(cause));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function generate(kind: ReportKind) {
-    await act(`report:${kind}`, () =>
-      window.sleeperCaffeine.generateReport(kind),
-    );
-  }
-
   async function sendChat(message: string) {
-    setBusy("chat");
-    setError(null);
-    try {
-      await window.sleeperCaffeine.sendChat(message);
-      await reload();
-    } catch (cause) {
-      setError(messageOf(cause));
-      throw cause;
-    } finally {
-      setBusy(null);
-    }
+    await commands.sendChat(message);
   }
+
+  const safely = (operation: Promise<unknown>) => {
+    void operation.catch(() => undefined);
+  };
 
   if (!data) return <LaunchScreen error={error} />;
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-platform={data.platform}>
       <aside className="sidebar">
         <div className="traffic-space" />
         <div className="brand">
@@ -230,11 +200,7 @@ export function App() {
         </div>
         <LeagueSwitcher
           data={data}
-          onSelect={(leagueId) =>
-            void act("switch", () =>
-              window.sleeperCaffeine.setActiveLeague(leagueId),
-            )
-          }
+          onSelect={(leagueId) => safely(commands.switchLeague(leagueId))}
           onAdd={() => setOnboarding(true)}
         />
         <nav className="nav-list">
@@ -259,8 +225,7 @@ export function App() {
             codex={data.codex}
             mcpState={data.mcp.state}
             onClick={() =>
-              data.codex.state === "signed_out" &&
-              void act("login", () => window.sleeperCaffeine.loginCodex())
+              data.codex.state === "signed_out" && safely(commands.login())
             }
           />
         </div>
@@ -269,19 +234,15 @@ export function App() {
       <main className="main-stage">
         <TopBar
           dashboard={active}
-          busy={busy === "refresh"}
-          onRefresh={() =>
-            void act("refresh", () =>
-              window.sleeperCaffeine.refreshActiveLeague(),
-            )
-          }
+          busy={commands.pending.refresh}
+          onRefresh={() => safely(commands.refresh())}
           onAnalyst={() => setAnalystOpen(true)}
         />
         {error && (
           <div className="error-banner">
             <Icon name="alert" />
             {error}
-            <button onClick={() => setError(null)}>×</button>
+            <button onClick={commands.dismissError}>×</button>
           </div>
         )}
         <div className="page-scroll">
@@ -295,43 +256,29 @@ export function App() {
               teamReport={report("team_analysis")}
               tradeReport={report("trade_suggestions")}
               draftReport={report("draft_candidates")}
-              busy={busy}
-              onGenerate={(kind) => void generate(kind)}
+              pending={commands.pending}
+              onGenerate={(kind) => safely(commands.generateReport(kind))}
               onNavigate={setPage}
-              onRefresh={() =>
-                void act("refresh", () =>
-                  window.sleeperCaffeine.refreshActiveLeague(),
-                )
-              }
-              onLogin={() =>
-                void act("login", () => window.sleeperCaffeine.loginCodex())
-              }
-              onClear={() =>
-                void act("clear", () => window.sleeperCaffeine.clearLocalData())
-              }
-              onLogout={() =>
-                void act("logout", () => window.sleeperCaffeine.logoutCodex())
-              }
+              onRefresh={() => safely(commands.refresh())}
+              onLogin={() => safely(commands.login())}
+              onClear={() => safely(commands.clear())}
+              onLogout={() => safely(commands.logout())}
               onAiSettings={(settings) =>
-                void act("ai-settings", () =>
-                  window.sleeperCaffeine.updateAiSettings(settings),
-                )
+                safely(commands.updateAiSettings(settings))
               }
               onToggleDraftPin={(playerId) =>
-                void act(`draft-pin:${playerId}`, () =>
-                  window.sleeperCaffeine.toggleDraftCandidatePin(playerId),
-                )
+                safely(commands.toggleDraftPin(playerId))
               }
             />
           )}
         </div>
       </main>
 
-      {onboarding && (
+      {(onboarding || !active) && (
         <Onboarding
           {...(active ? { onClose: () => setOnboarding(false) } : {})}
           onSaved={(next) => {
-            setData(next);
+            commands.setBootstrap(next);
             setOnboarding(false);
             setPage("home");
           }}
@@ -344,11 +291,9 @@ export function App() {
           messages={data.chatMessages}
           hasMore={data.chatHasMore}
           activeRun={chatRun}
-          sendPending={busy === "chat"}
+          sendPending={commands.pending.chat}
           onClose={() => setAnalystOpen(false)}
-          onLogin={() =>
-            void act("login", () => window.sleeperCaffeine.loginCodex())
-          }
+          onLogin={() => safely(commands.login())}
           onSend={sendChat}
         />
       )}
@@ -363,7 +308,7 @@ function PageContent(props: {
   teamReport: AiReport | null;
   tradeReport: AiReport | null;
   draftReport: AiReport | null;
-  busy: string | null;
+  pending: CaffeinePendingState;
   onGenerate(kind: ReportKind): void;
   onNavigate(page: Page): void;
   onRefresh(): void;
@@ -381,7 +326,7 @@ function PageContent(props: {
         tradeReport={props.tradeReport}
         draftReport={props.draftReport}
         codex={props.data.codex}
-        busy={props.busy}
+        generating={props.pending.report}
         onNavigate={props.onNavigate}
         onGenerate={props.onGenerate}
         onLogin={props.onLogin}
@@ -432,19 +377,19 @@ function PageContent(props: {
       onLogin={props.onLogin}
       onLogout={props.onLogout}
       onAiSettings={props.onAiSettings}
-      busy={props.busy}
+      pending={props.pending}
     />
   );
 }
 
 function reportActions(props: {
-  busy: string | null;
+  pending: CaffeinePendingState;
   onGenerate(kind: ReportKind): void;
   onLogin(): void;
   data: Bootstrap;
 }) {
   return {
-    busy: props.busy,
+    generating: props.pending.report,
     onGenerate: props.onGenerate,
     onLogin: props.onLogin,
     codex: props.data.codex,
@@ -457,7 +402,7 @@ function Home({
   tradeReport,
   draftReport,
   codex,
-  busy,
+  generating,
   onNavigate,
   onGenerate,
   onLogin,
@@ -467,7 +412,7 @@ function Home({
   tradeReport: AiReport | null;
   draftReport: AiReport | null;
   codex: CodexStatus;
-  busy: string | null;
+  generating: ReportKind | null;
   onNavigate(page: Page): void;
   onGenerate(kind: ReportKind): void;
   onLogin(): void;
@@ -529,7 +474,7 @@ function Home({
             report={teamReport}
             fallback="Run the first audit to surface strengths, weak links, and roster dead weight."
             status={codex}
-            running={busy === "report:team_analysis"}
+            running={generating === "team_analysis"}
             onOpen={() => onNavigate("analysis")}
             onGenerate={() => onGenerate("team_analysis")}
             onLogin={onLogin}
@@ -541,7 +486,7 @@ function Home({
             report={tradeReport}
             fallback="Map the league and find partners whose needs line up with your excess."
             status={codex}
-            running={busy === "report:trade_suggestions"}
+            running={generating === "trade_suggestions"}
             onOpen={() => onNavigate("trades")}
             onGenerate={() => onGenerate("trade_suggestions")}
             onLogin={onLogin}
@@ -553,7 +498,7 @@ function Home({
             report={liveDraftReport}
             fallback="Build a shortlist around roster shape, settings, picks, and current news."
             status={codex}
-            running={busy === "report:draft_candidates"}
+            running={generating === "draft_candidates"}
             onOpen={() => onNavigate("draft")}
             onGenerate={() => onGenerate("draft_candidates")}
             onLogin={onLogin}
@@ -653,7 +598,7 @@ function ReportPage({
   title,
   description,
   report,
-  busy,
+  generating,
   onGenerate,
   onLogin,
   codex,
@@ -663,12 +608,12 @@ function ReportPage({
   title: string;
   description: string;
   report: AiReport | null;
-  busy: string | null;
+  generating: ReportKind | null;
   onGenerate(kind: ReportKind): void;
   onLogin(): void;
   codex: CodexStatus;
 }) {
-  const running = busy === `report:${kind}`;
+  const running = generating === kind;
   return (
     <div className="page">
       <PageHeading
@@ -699,7 +644,7 @@ function ReportPage({
 function DraftPage({
   dashboard,
   report,
-  busy,
+  generating,
   onGenerate,
   onLogin,
   codex,
@@ -708,14 +653,14 @@ function DraftPage({
 }: {
   dashboard: Dashboard;
   report: AiReport | null;
-  busy: string | null;
+  generating: ReportKind | null;
   onGenerate(kind: ReportKind): void;
   onLogin(): void;
   codex: CodexStatus;
   onRefresh(): void;
   onTogglePin(playerId: string): void;
 }) {
-  const running = busy === "report:draft_candidates";
+  const running = generating === "draft_candidates";
   const draft = dashboard.draft;
   const [position, setPosition] = useState("ALL");
   const [query, setQuery] = useState("");
@@ -730,45 +675,22 @@ function DraftPage({
     )
       ? plan
       : null;
-  const availableCandidateIds = new Set(
-    (draft?.candidates ?? []).map((candidate) => candidate.player.playerId),
+  const livePlanRecommendations = selectLivePlanRecommendations(
+    draft?.candidates ?? [],
+    activePlan,
   );
-  const livePlanRecommendations = (activePlan?.recommendations ?? [])
-    .filter((recommendation) =>
-      availableCandidateIds.has(recommendation.player.playerId),
-    )
-    .sort((a, b) => {
-      if (a.player.playerId === activePlan?.activeRecommendationPlayerId)
-        return -1;
-      if (b.player.playerId === activePlan?.activeRecommendationPlayerId)
-        return 1;
-      return a.planRank - b.planRank;
-    });
   const recommendationById = new Map(
     livePlanRecommendations.map((recommendation) => [
       recommendation.player.playerId,
       recommendation,
     ]),
   );
-  const visibleCandidates = [...(draft?.candidates ?? [])]
-    .filter(
-      (candidate) =>
-        position === "ALL" || candidate.player.position === position,
-    )
-    .filter((candidate) =>
-      `${candidate.player.name} ${candidate.player.nflTeam ?? ""}`
-        .toLowerCase()
-        .includes(query.trim().toLowerCase()),
-    )
-    .sort((a, b) => {
-      const aPlan = recommendationById.get(a.player.playerId);
-      const bPlan = recommendationById.get(b.player.playerId);
-      if (aPlan && bPlan) return aPlan.planRank - bPlan.planRank;
-      if (aPlan) return -1;
-      if (bPlan) return 1;
-      return a.rank - b.rank;
-    })
-    .slice(0, 24);
+  const visibleCandidates = selectVisibleDraftCandidates({
+    candidates: draft?.candidates ?? [],
+    recommendations: livePlanRecommendations,
+    position,
+    query,
+  });
   const nextPick = draft?.myUpcomingPickNumbers[0] ?? null;
   const completedSelection = plan?.selectedPlayerId
     ? plan.recommendations.find(
@@ -1374,8 +1296,7 @@ function ReportView({
               className="source-row"
               key={`${source.title}-${String(index)}`}
               onClick={() =>
-                source.url &&
-                void window.sleeperCaffeine.openExternal(source.url)
+                source.url && void caffeineClient.openExternal(source.url)
               }
               disabled={!source.url}
             >
@@ -1533,14 +1454,14 @@ function SettingsPage({
   onLogin,
   onLogout,
   onAiSettings,
-  busy,
+  pending,
 }: {
   data: Bootstrap;
   onClear(): void;
   onLogin(): void;
   onLogout(): void;
   onAiSettings(settings: AiSettings): void;
-  busy: string | null;
+  pending: CaffeinePendingState;
 }) {
   const [danger, setDanger] = useState(false);
   const availableModels = data.codex.availableModels.length
@@ -1588,7 +1509,7 @@ function SettingsPage({
             <select
               className="settings-select"
               value={data.aiSettings.model}
-              disabled={busy === "ai-settings"}
+              disabled={pending.settings}
               onChange={(event) => {
                 const model = availableModels.find(
                   (candidate) => candidate.model === event.target.value,
@@ -1621,7 +1542,7 @@ function SettingsPage({
             <select
               className="settings-select effort"
               value={data.aiSettings.effort}
-              disabled={busy === "ai-settings"}
+              disabled={pending.settings}
               onChange={(event) =>
                 onAiSettings({
                   model: data.aiSettings.model,
@@ -1643,12 +1564,20 @@ function SettingsPage({
           status={data.codex.email ? "connected" : "disconnected"}
           action={
             data.codex.email ? (
-              <button className="text-button" onClick={onLogout}>
-                Sign out
+              <button
+                className="text-button"
+                onClick={onLogout}
+                disabled={pending.logout}
+              >
+                {pending.logout ? "Signing out…" : "Sign out"}
               </button>
             ) : (
-              <button className="text-button" onClick={onLogin}>
-                Sign in
+              <button
+                className="text-button"
+                onClick={onLogin}
+                disabled={pending.login}
+              >
+                {pending.login ? "Opening login…" : "Sign in"}
               </button>
             )
           }
@@ -1692,9 +1621,9 @@ function SettingsPage({
             <button
               className="button danger"
               onClick={onClear}
-              disabled={busy === "clear"}
+              disabled={pending.clear}
             >
-              {busy === "clear" ? "Clearing…" : "Clear everything"}
+              {pending.clear ? "Clearing…" : "Clear everything"}
             </button>
             <button className="button ghost" onClick={() => setDanger(false)}>
               Cancel
@@ -1702,232 +1631,6 @@ function SettingsPage({
           </div>
         )}
       </section>
-    </div>
-  );
-}
-
-function Onboarding({
-  onClose,
-  onSaved,
-}: {
-  onClose?: () => void;
-  onSaved(data: Bootstrap): void;
-}) {
-  const [step, setStep] = useState<"url" | "team">("url");
-  const [input, setInput] = useState("");
-  const [preview, setPreview] = useState<LeaguePreview | null>(null);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function lookup(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const found = await window.sleeperCaffeine.previewLeague(input);
-      setPreview(found);
-      setStep("team");
-    } catch (cause) {
-      setError(messageOf(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function save() {
-    const team = preview?.teams.find(
-      (candidate) => candidate.rosterId === selected,
-    );
-    if (!preview || !team) return;
-    setBusy(true);
-    setError(null);
-    try {
-      onSaved(
-        await window.sleeperCaffeine.saveLeague({
-          leagueId: preview.leagueId,
-          rosterId: team.rosterId,
-          userId: team.userId,
-        }),
-      );
-    } catch (cause) {
-      setError(messageOf(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <div className="modal-backdrop">
-      <div className="onboarding-modal">
-        {onClose && (
-          <button className="modal-close" onClick={onClose}>
-            ×
-          </button>
-        )}
-        <div className="onboarding-art">
-          <img
-            className="brand-mark giant"
-            src={sleeperCaffeineBadge}
-            alt="Sleeper Caffeine"
-          />
-          <div className="onboarding-copy">
-            <span className="eyebrow">League onboarding</span>
-            <h2>
-              Wake up your team.
-              <br />
-              With Caffeine.
-            </h2>
-            <p>
-              Use your Codex subscription and Sleeper’s public API to unlock
-              league-specific insights and make sharper roster decisions.
-            </p>
-          </div>
-        </div>
-        <div className="onboarding-form">
-          <div className="step-count">
-            <span className={step === "url" ? "active" : "done"}>1</span>
-            <i />
-            <span className={step === "team" ? "active" : ""}>2</span>
-          </div>
-          {step === "url" ? (
-            <form onSubmit={(event) => void lookup(event)}>
-              <span className="eyebrow">Step one</span>
-              <h3>Connect a league</h3>
-              <p>Paste the league URL from Sleeper. Numeric IDs work too.</p>
-              <label>
-                League URL
-                <input
-                  autoFocus
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder="https://sleeper.com/leagues/…"
-                />
-              </label>
-              {error && <span className="form-error">{error}</span>}
-              <button
-                className="button primary wide"
-                disabled={busy || !input.trim()}
-              >
-                {busy ? <Spinner /> : <Icon name="arrow" />}
-                {busy ? "Finding league…" : "Find league"}
-              </button>
-            </form>
-          ) : (
-            preview && (
-              <div>
-                <span className="eyebrow">Step two</span>
-                <h3>Which team is yours?</h3>
-                <p>
-                  <strong>{preview.name}</strong> · {preview.season} ·{" "}
-                  {preview.teams.length} teams
-                </p>
-                <div className="team-picker">
-                  {preview.teams.map((team) => (
-                    <button
-                      key={team.rosterId}
-                      className={
-                        selected === team.rosterId
-                          ? "team-choice selected"
-                          : "team-choice"
-                      }
-                      onClick={() => setSelected(team.rosterId)}
-                    >
-                      <Avatar name={team.teamName} avatar={team.avatar} />
-                      <div>
-                        <strong>{team.teamName}</strong>
-                        <span>
-                          {team.displayName} · {team.record}
-                        </span>
-                      </div>
-                      <i />
-                    </button>
-                  ))}
-                </div>
-                {error && <span className="form-error">{error}</span>}
-                <div className="form-actions">
-                  <button
-                    className="button ghost"
-                    onClick={() => setStep("url")}
-                  >
-                    Back
-                  </button>
-                  <button
-                    className="button primary"
-                    disabled={busy || selected === null}
-                    onClick={() => void save()}
-                  >
-                    {busy ? <Spinner /> : <Icon name="arrow" />}
-                    {busy ? "Syncing roster…" : "Open front office"}
-                  </button>
-                </div>
-              </div>
-            )
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AnalystDrawer({
-  dashboard,
-  status,
-  messages,
-  hasMore,
-  activeRun,
-  sendPending,
-  onClose,
-  onLogin,
-  onSend,
-}: {
-  dashboard: Dashboard;
-  status: CodexStatus;
-  messages: Bootstrap["chatMessages"];
-  hasMore: boolean;
-  activeRun: CaffeineChatRun | null;
-  sendPending: boolean;
-  onClose(): void;
-  onLogin(): void;
-  onSend(message: string): Promise<void>;
-}) {
-  return (
-    <div
-      className="drawer-backdrop"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
-    >
-      <aside className="analyst-drawer">
-        <header>
-          <div className="analyst-avatar">
-            <Icon name="spark" />
-            <span />
-          </div>
-          <div>
-            <strong>Caffeine Analyst</strong>
-            <span>
-              <i />
-              {sendPending
-                ? "Researching league context"
-                : "Live league context"}
-            </span>
-          </div>
-          <button onClick={onClose}>×</button>
-        </header>
-        <div className="analyst-context">
-          <span>{dashboard.league.teamName}</span>
-          <span>{dashboard.scoringLabel}</span>
-          <span>Roster #{dashboard.league.rosterId}</span>
-        </div>
-        <CaffeineAssistant
-          key={dashboard.league.leagueId}
-          leagueId={dashboard.league.leagueId}
-          persistedMessages={messages}
-          initialHasMore={hasMore}
-          activeRun={activeRun}
-          codexStatus={status}
-          sendPending={sendPending}
-          onSend={onSend}
-          onLogin={onLogin}
-        />
-      </aside>
     </div>
   );
 }
@@ -2181,7 +1884,7 @@ function ReportTeaser({
 }: {
   kind: ReportKind;
   title: string;
-  icon: string;
+  icon: IconName;
   report: AiReport | null;
   fallback: string;
   status: CodexStatus;
@@ -2206,21 +1909,7 @@ function ReportTeaser({
     else onGenerate();
   };
   return (
-    <article
-      className="report-teaser"
-      data-report-kind={kind}
-      role="button"
-      tabIndex={0}
-      aria-label={`Open ${title}`}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen();
-        }
-      }}
-    >
+    <article className="report-teaser" data-report-kind={kind}>
       <div className="teaser-icon">
         <Icon name={icon} />
       </div>
@@ -2235,9 +1924,9 @@ function ReportTeaser({
           <p>{summary}</p>
         </div>
         {report ? (
-          <span className="teaser-read">
+          <button className="teaser-read" onClick={onOpen}>
             Read analysis <Icon name="arrow" />
-          </span>
+          </button>
         ) : (
           <button
             className="teaser-generate"
@@ -2486,108 +2175,6 @@ function CoffeeBall() {
         <b>QB</b>
       </div>
     </div>
-  );
-}
-
-function Icon({ name, spin }: { name: string; spin?: boolean }) {
-  const paths: Record<string, ReactNode> = {
-    grid: (
-      <>
-        <rect x="3" y="3" width="7" height="7" rx="2" />
-        <rect x="14" y="3" width="7" height="7" rx="2" />
-        <rect x="3" y="14" width="7" height="7" rx="2" />
-        <rect x="14" y="14" width="7" height="7" rx="2" />
-      </>
-    ),
-    users: (
-      <>
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-      </>
-    ),
-    pulse: <path d="M3 12h4l2-7 4 14 2-7h6" />,
-    swap: (
-      <>
-        <path d="m17 3 4 4-4 4" />
-        <path d="M3 7h18M7 21l-4-4 4-4M21 17H3" />
-      </>
-    ),
-    target: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 3v3M21 12h-3M12 21v-3M3 12h3" />
-      </>
-    ),
-    spark: (
-      <>
-        <path d="m12 3-1.4 4.2a5 5 0 0 1-3.2 3.2L3 12l4.4 1.6a5 5 0 0 1 3.2 3.2L12 21l1.4-4.2a5 5 0 0 1 3.2-3.2L21 12l-4.4-1.6a5 5 0 0 1-3.2-3.2L12 3Z" />
-      </>
-    ),
-    bolt: <path d="m13 2-9 12h8l-1 8 9-12h-8l1-8Z" />,
-    settings: (
-      <>
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.4V9.6h.1A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2.4h4v.1A1.7 1.7 0 0 0 15 4.2a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.6c.14.38.36.72.65 1 .3.27.68.4 1.08.4h.08v4h-.08a1.7 1.7 0 0 0-1.73 1Z" />
-      </>
-    ),
-    refresh: (
-      <>
-        <path d="M20 6v5h-5" />
-        <path d="M4 18v-5h5" />
-        <path d="M6.1 9a7 7 0 0 1 11.6-2.6L20 11M4 13l2.3 4.6A7 7 0 0 0 18 15" />
-      </>
-    ),
-    search: (
-      <>
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-4-4" />
-      </>
-    ),
-    alert: (
-      <>
-        <path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z" />
-        <path d="M12 9v4M12 17h.01" />
-      </>
-    ),
-    chevron: <path d="m9 18 6-6-6-6" />,
-    arrow: (
-      <>
-        <path d="M5 12h14M13 6l6 6-6 6" />
-      </>
-    ),
-    external: (
-      <>
-        <path d="M15 3h6v6M10 14 21 3" />
-        <path d="M18 13v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h7" />
-      </>
-    ),
-    lock: (
-      <>
-        <rect x="4" y="10" width="16" height="11" rx="2" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-      </>
-    ),
-    coffee: (
-      <>
-        <path d="M4 9h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9Z" />
-        <path d="M17 11h1a3 3 0 0 1 0 6h-2M8 2v3M12 2v3" />
-      </>
-    ),
-  };
-  return (
-    <svg
-      className={spin ? "icon spinning" : "icon"}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {paths[name] ?? paths.spark}
-    </svg>
   );
 }
 

@@ -1,4 +1,6 @@
 import eslint from "@eslint/js";
+import jsxA11y from "eslint-plugin-jsx-a11y";
+import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -38,10 +40,33 @@ export default tseslint.config(
   },
   {
     files: ["**/*.tsx"],
+    plugins: {
+      "jsx-a11y": jsxA11y,
+      "react-hooks": reactHooks,
+    },
     rules: {
+      ...jsxA11y.configs.recommended.rules,
+      ...reactHooks.configs.flat.recommended.rules,
       // JSX callback props are plain functions; the rule cannot distinguish
       // them from object methods that depend on a receiver.
       "@typescript-eslint/unbound-method": "off",
+      // Electron image sources are static CDN URLs, not user-authored alt text.
+      "jsx-a11y/alt-text": "error",
+    },
+  },
+  {
+    files: ["apps/desktop/src/renderer/**/*.{ts,tsx}"],
+    ignores: ["apps/desktop/src/renderer/api/caffeine-client.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "MemberExpression[object.name='window'][property.name='sleeperCaffeine']",
+          message:
+            "Use the typed caffeineClient/query layer instead of calling preload IPC directly.",
+        },
+      ],
     },
   },
 );

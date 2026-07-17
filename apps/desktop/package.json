@@ -13,8 +13,11 @@
     "dev": "electron-vite dev --watch",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "lint": "eslint src electron.vite.config.ts",
+    "lint": "eslint src electron.vite.config.ts vitest.config.ts .storybook",
     "test": "vitest run --passWithNoTests",
+    "test:browser": "vitest run --project browser",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build",
     "dist:mac": "pnpm build && electron-builder --mac",
     "dist:linux": "pnpm build && electron-builder --linux",
     "dist:win": "pnpm build && electron-builder --win"
@@ -22,22 +25,33 @@
   "dependencies": {
     "@assistant-ui/react": "0.14.27",
     "@assistant-ui/react-markdown": "0.14.6",
+    "@fontsource/dm-mono": "^5.2.7",
+    "@fontsource/manrope": "^5.2.8",
     "@sleeper-caffeine/codex-runtime": "workspace:*",
     "@sleeper-caffeine/core": "workspace:*",
     "@sleeper-caffeine/ipc-contract": "workspace:*",
     "@sleeper-caffeine/mcp": "workspace:*",
+    "@tanstack/react-query": "^5.101.2",
     "remark-gfm": "4.0.1",
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "^10.5.2",
+    "@storybook/addon-vitest": "^10.5.2",
+    "@storybook/react-vite": "^10.5.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.4",
+    "@vitest/browser-playwright": "^4.1.10",
     "electron": "41.0.4",
     "electron-builder": "26.8.1",
     "electron-vite": "5.0.0",
+    "playwright": "^1.61.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "vite": "7.3.6"
+    "storybook": "^10.5.2",
+    "vite": "7.3.6",
+    "vitest": "4.1.10",
+    "vitest-browser-react": "^2.2.0"
   }
 }

@@ -7,10 +7,7 @@ const developmentCspPlugin: Plugin = {
   name: "sleeper-caffeine-development-csp",
   apply: "serve",
   transformIndexHtml(html) {
-    return html.replace(
-      "style-src 'self' https://fonts.googleapis.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    );
+    return html.replace("style-src 'self'", "style-src 'self' 'unsafe-inline'");
   },
 };
 

@@ -22,6 +22,7 @@ import { LocalMcpBridge } from "@sleeper-caffeine/mcp";
 import { CodexSupervisor } from "@sleeper-caffeine/codex-runtime";
 import {
   DRAFT_PLAN_OUTPUT_JSON_SCHEMA,
+  DesktopPlatformSchema,
   DraftPlanOutputSchema,
   MICRO_SUMMARY_OUTPUT_JSON_SCHEMA,
   MicroSummaryOutputSchema,
@@ -112,6 +113,7 @@ export class AppRuntime extends EventEmitter {
       ? this.store.listChatMessages(active.leagueId)
       : { messages: [], hasMore: false };
     return {
+      platform: DesktopPlatformSchema.parse(process.platform),
       leagues: this.store.listLeagues(),
       activeDashboard,
       reports: reports.map((report) => {

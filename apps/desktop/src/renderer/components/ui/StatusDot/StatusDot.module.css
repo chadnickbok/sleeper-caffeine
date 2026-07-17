@@ -1,0 +1,21 @@
+.root {
+  width: 0.375rem;
+  height: 0.375rem;
+  display: inline-block;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+}
+
+.live {
+  background: var(--color-action-bright);
+  box-shadow: 0 0 0.5rem
+    color-mix(in srgb, var(--color-action-bright) 55%, transparent);
+}
+
+.warning {
+  background: #ffae6d;
+}
+
+.danger {
+  background: var(--color-status-danger);
+}

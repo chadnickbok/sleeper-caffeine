@@ -1,0 +1,20 @@
+.root {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+}
+
+.root > span {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.root small {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-metadata);
+}
+
+.root small.error {
+  color: var(--color-status-danger);
+}

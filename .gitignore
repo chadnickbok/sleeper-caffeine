@@ -3,6 +3,7 @@ dist/
 out/
 release/
 coverage/
+storybook-static/
 .cache/
 .env
 .env.*

@@ -1,10 +1,12 @@
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ComponentPropsWithoutRef, MouseEvent } from "react";
+import { caffeineClient } from "../api/caffeine-client.js";
 
 function SafeExternalLink({
   href,
   onClick,
+  children,
   ...props
 }: ComponentPropsWithoutRef<"a">) {
   const safeHref = href?.startsWith("https://") ? href : undefined;
@@ -12,10 +14,12 @@ function SafeExternalLink({
     onClick?.(event);
     if (event.defaultPrevented) return;
     event.preventDefault();
-    if (safeHref) void window.sleeperCaffeine.openExternal(safeHref);
+    if (safeHref) void caffeineClient.openExternal(safeHref);
   };
   return (
-    <a {...props} href={safeHref} onClick={handleClick} rel="noreferrer" />
+    <a {...props} href={safeHref} onClick={handleClick} rel="noreferrer">
+      {children}
+    </a>
   );
 }
 
