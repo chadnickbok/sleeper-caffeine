@@ -1,0 +1,22 @@
+[
+  {
+    "draft_id": "draft1",
+    "player_id": "p1",
+    "pick_no": 1,
+    "round": 1,
+    "draft_slot": 1,
+    "roster_id": 1,
+    "picked_by": "u1",
+    "is_keeper": false
+  },
+  {
+    "draft_id": "draft1",
+    "player_id": "p3",
+    "pick_no": 2,
+    "round": 1,
+    "draft_slot": 2,
+    "roster_id": 2,
+    "picked_by": "u2",
+    "is_keeper": false
+  }
+]

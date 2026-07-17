@@ -111,6 +111,12 @@ export const DraftSchema = z
     settings: UnknownRecordSchema.default({}),
     metadata: UnknownRecordSchema.nullable().optional(),
     draft_order: z.record(z.string(), z.number()).nullable().optional(),
+    slot_to_roster_id: z
+      .record(z.string(), z.union([z.number().int(), z.string()]))
+      .nullable()
+      .optional(),
+    last_picked: z.number().nullable().optional(),
+    created: z.number().nullable().optional(),
   })
   .passthrough();
 

@@ -40,6 +40,8 @@ export async function createFixtureFetch(
     "/v1/league/12345/matchups/3": await fixture("matchups.json"),
     "/v1/league/12345/traded_picks": await fixture("traded-picks.json"),
     "/v1/league/12345/drafts": await fixture("drafts.json"),
+    "/v1/draft/draft1/picks": await fixture("draft-picks.json"),
+    "/v1/draft/draft1/traded_picks": await fixture("draft-traded-picks.json"),
     "/v1/league/12345/transactions/3": await fixture("transactions.json"),
     "/v1/league/12345/winners_bracket": await fixture("bracket.json"),
     "/v1/players/nfl": await fixture("players.json"),

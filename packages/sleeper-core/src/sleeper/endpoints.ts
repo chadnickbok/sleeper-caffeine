@@ -83,6 +83,13 @@ export class SleeperApi {
     );
   }
 
+  getDraftTradedPicks(draftId: string) {
+    return this.client.get(
+      `/draft/${segment(draftId)}/traded_picks`,
+      TradedPicksSchema,
+    );
+  }
+
   getPlayers() {
     return this.client.get("/players/nfl", PlayerMapSchema);
   }

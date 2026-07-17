@@ -19,13 +19,15 @@ describe("LocalMcpBridge", () => {
     running.push(bridge);
     const status = await bridge.start();
     const client = new Client({ name: "http-contract-test", version: "0.1.0" });
-    await client.connect(
-      new StreamableHTTPClientTransport(new URL(status.endpoint)),
+    const transport = new StreamableHTTPClientTransport(
+      new URL(status.endpoint),
     );
+    await client.connect(transport as Parameters<Client["connect"]>[0]);
 
     const tools = await client.listTools();
 
     expect(tools.tools.map((tool) => tool.name)).toEqual([
+      "get_draft_snapshot",
       "get_team_snapshot",
       "get_available_players",
       "get_matchup_context",

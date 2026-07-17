@@ -39,8 +39,14 @@ export const LeagueHistoryInputSchema = z.object({
   max_seasons: z.number().int().min(1).max(10).default(5),
 });
 
+export const DraftSnapshotInputSchema = z.object({
+  league_id: LeagueIdSchema,
+  roster_id: z.number().int().positive(),
+});
+
 export type TeamSnapshotInput = z.infer<typeof TeamSnapshotInputSchema>;
 export type AvailablePlayersInput = z.infer<typeof AvailablePlayersInputSchema>;
 export type MatchupContextInput = z.infer<typeof MatchupContextInputSchema>;
 export type TradeContextInput = z.infer<typeof TradeContextInputSchema>;
 export type LeagueHistoryInput = z.infer<typeof LeagueHistoryInputSchema>;
+export type DraftSnapshotInput = z.infer<typeof DraftSnapshotInputSchema>;

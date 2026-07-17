@@ -106,3 +106,14 @@ export const LeagueHistoryOutputSchema = envelope(
     seasons: z.array(z.record(z.string(), z.unknown())),
   }),
 );
+
+export const DraftSnapshotOutputSchema = envelope(
+  z
+    .object({
+      league_id: z.string(),
+      roster_id: z.number().int().optional(),
+      draft: z.record(z.string(), z.unknown()).nullable(),
+      limitations: z.array(z.string()),
+    })
+    .passthrough(),
+);

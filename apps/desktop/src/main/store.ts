@@ -3,8 +3,11 @@ import { randomUUID } from "node:crypto";
 import type {
   AiReport,
   AiSettings,
+  ChatHistoryCursor,
+  ChatHistoryPage,
   ChatMessage,
   Dashboard,
+  DraftPlan,
   MicroSummary,
   ReportKind,
   ReportPayload,
@@ -14,6 +17,7 @@ import type {
 import {
   AiSettingsSchema,
   DEFAULT_AI_SETTINGS,
+  DraftPlanSchema,
   MicroSummarySchema,
   REPORT_STALE_AFTER_MS,
 } from "@sleeper-caffeine/ipc-contract";
@@ -114,6 +118,10 @@ export class LocalStore {
   saveDashboard(dashboard: Dashboard, rawSnapshot: unknown): void {
     const json = JSON.stringify(dashboard);
     const raw = JSON.stringify(rawSnapshot);
+    const previous = this.getDashboard(dashboard.league.leagueId);
+    const draftBoardChanged =
+      previous !== null &&
+      previous.draft?.boardHash !== dashboard.draft?.boardHash;
     this.database.exec("BEGIN IMMEDIATE");
     try {
       this.database
@@ -135,7 +143,10 @@ export class LocalStore {
       this.database
         .prepare(
           `UPDATE ai_reports
-           SET invalidated = CASE WHEN generated_at < ? THEN 1 ELSE 0 END
+           SET invalidated = CASE
+             WHEN invalidated = 1 OR generated_at < ? THEN 1
+             ELSE 0
+           END
            WHERE league_id = ?`,
         )
         .run(
@@ -144,11 +155,55 @@ export class LocalStore {
           ).toISOString(),
           dashboard.league.leagueId,
         );
+      if (draftBoardChanged) {
+        this.database
+          .prepare(
+            "UPDATE ai_reports SET invalidated = 1 WHERE league_id = ? AND kind = 'draft_candidates'",
+          )
+          .run(dashboard.league.leagueId);
+      }
       this.database.exec("COMMIT");
     } catch (error) {
       this.database.exec("ROLLBACK");
       throw error;
     }
+  }
+
+  updateDashboardCache(dashboard: Dashboard): void {
+    this.database
+      .prepare("UPDATE leagues SET snapshot_json = ? WHERE league_id = ?")
+      .run(JSON.stringify(dashboard), dashboard.league.leagueId);
+  }
+
+  getPinnedDraftCandidateIds(leagueId: string): Set<string> {
+    const rows = this.database
+      .prepare(
+        "SELECT player_id FROM draft_candidate_pins WHERE league_id = ? ORDER BY created_at ASC",
+      )
+      .all(leagueId) as Array<{ player_id: string }>;
+    return new Set(rows.map((row) => row.player_id));
+  }
+
+  toggleDraftCandidatePin(leagueId: string, playerId: string): boolean {
+    const existing = this.database
+      .prepare(
+        "SELECT 1 AS present FROM draft_candidate_pins WHERE league_id = ? AND player_id = ?",
+      )
+      .get(leagueId, playerId) as { present: number } | undefined;
+    if (existing) {
+      this.database
+        .prepare(
+          "DELETE FROM draft_candidate_pins WHERE league_id = ? AND player_id = ?",
+        )
+        .run(leagueId, playerId);
+      return false;
+    }
+    this.database
+      .prepare(
+        "INSERT INTO draft_candidate_pins (league_id, player_id, created_at) VALUES (?, ?, ?)",
+      )
+      .run(leagueId, playerId, new Date().toISOString());
+    return true;
   }
 
   getReports(leagueId: string): AiReport[] {
@@ -165,6 +220,7 @@ export class LocalStore {
       invalidated: number;
       payload_json: string;
       micro_summary_json: string | null;
+      draft_plan_json: string | null;
     }>;
     return rows.map((row) => ({
       id: row.id,
@@ -177,6 +233,9 @@ export class LocalStore {
       microSummary: row.micro_summary_json
         ? MicroSummarySchema.parse(JSON.parse(row.micro_summary_json))
         : null,
+      draftPlan: row.draft_plan_json
+        ? DraftPlanSchema.parse(JSON.parse(row.draft_plan_json))
+        : null,
     }));
   }
 
@@ -185,6 +244,7 @@ export class LocalStore {
     kind: ReportKind;
     snapshotAt: string;
     payload: ReportPayload;
+    draftPlan?: DraftPlan | null;
   }): AiReport {
     const report: AiReport = {
       id: randomUUID(),
@@ -195,10 +255,11 @@ export class LocalStore {
       invalidated: false,
       payload: input.payload,
       microSummary: null,
+      draftPlan: input.draftPlan ?? null,
     };
     this.database
       .prepare(
-        "INSERT INTO ai_reports (id, league_id, kind, generated_at, snapshot_at, invalidated, payload_json) VALUES (?, ?, ?, ?, ?, 0, ?)",
+        "INSERT INTO ai_reports (id, league_id, kind, generated_at, snapshot_at, invalidated, payload_json, draft_plan_json) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
       )
       .run(
         report.id,
@@ -207,6 +268,7 @@ export class LocalStore {
         report.generatedAt,
         report.snapshotAt,
         JSON.stringify(report.payload),
+        report.draftPlan ? JSON.stringify(report.draftPlan) : null,
       );
     return report;
   }
@@ -268,25 +330,57 @@ export class LocalStore {
     }
   }
 
-  listChatMessages(leagueId: string): ChatMessage[] {
-    const rows = this.database
-      .prepare(
-        "SELECT * FROM chat_messages WHERE league_id = ? ORDER BY created_at ASC",
-      )
-      .all(leagueId) as Array<{
+  listChatMessages(
+    leagueId: string,
+    options: { limit?: number; before?: ChatHistoryCursor | null } = {},
+  ): ChatHistoryPage {
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+    const before = options.before ?? null;
+    const rows = (
+      before
+        ? this.database
+            .prepare(
+              `SELECT * FROM chat_messages
+             WHERE league_id = ?
+               AND (created_at < ? OR (created_at = ? AND id < ?))
+             ORDER BY created_at DESC, id DESC
+             LIMIT ?`,
+            )
+            .all(
+              leagueId,
+              before.createdAt,
+              before.createdAt,
+              before.id,
+              limit + 1,
+            )
+        : this.database
+            .prepare(
+              `SELECT * FROM chat_messages
+             WHERE league_id = ?
+             ORDER BY created_at DESC, id DESC
+             LIMIT ?`,
+            )
+            .all(leagueId, limit + 1)
+    ) as Array<{
       id: string;
       league_id: string;
       role: "user" | "assistant";
       content: string;
       created_at: string;
     }>;
-    return rows.map((row) => ({
-      id: row.id,
-      leagueId: row.league_id,
-      role: row.role,
-      content: row.content,
-      createdAt: row.created_at,
-    }));
+    return {
+      hasMore: rows.length > limit,
+      messages: rows
+        .slice(0, limit)
+        .reverse()
+        .map((row) => ({
+          id: row.id,
+          leagueId: row.league_id,
+          role: row.role,
+          content: row.content,
+          createdAt: row.created_at,
+        })),
+    };
   }
 
   saveChatMessage(
@@ -317,7 +411,7 @@ export class LocalStore {
 
   clearAll(): void {
     this.database.exec(
-      "BEGIN; DELETE FROM chat_messages; DELETE FROM codex_threads; DELETE FROM ai_reports; DELETE FROM league_snapshots; DELETE FROM leagues; COMMIT;",
+      "BEGIN; DELETE FROM chat_messages; DELETE FROM codex_threads; DELETE FROM ai_reports; DELETE FROM draft_candidate_pins; DELETE FROM league_snapshots; DELETE FROM leagues; COMMIT;",
     );
   }
 
@@ -340,7 +434,7 @@ export class LocalStore {
         id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(league_id) ON DELETE CASCADE,
         kind TEXT NOT NULL, generated_at TEXT NOT NULL, snapshot_at TEXT NOT NULL,
         invalidated INTEGER NOT NULL DEFAULT 0, payload_json TEXT NOT NULL,
-        micro_summary_json TEXT
+        micro_summary_json TEXT, draft_plan_json TEXT
       );
       CREATE TABLE IF NOT EXISTS codex_threads (
         league_id TEXT NOT NULL REFERENCES leagues(league_id) ON DELETE CASCADE,
@@ -350,13 +444,21 @@ export class LocalStore {
         id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(league_id) ON DELETE CASCADE,
         role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS draft_candidate_pins (
+        league_id TEXT NOT NULL REFERENCES leagues(league_id) ON DELETE CASCADE,
+        player_id TEXT NOT NULL, created_at TEXT NOT NULL,
+        PRIMARY KEY (league_id, player_id)
+      );
       CREATE TABLE IF NOT EXISTS app_settings (
         key TEXT PRIMARY KEY, value TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_snapshots_league ON league_snapshots(league_id, captured_at DESC);
       CREATE INDEX IF NOT EXISTS idx_reports_league ON ai_reports(league_id, generated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_league
+        ON chat_messages(league_id, created_at DESC, id DESC);
     `);
     this.ensureColumn("ai_reports", "micro_summary_json", "TEXT");
+    this.ensureColumn("ai_reports", "draft_plan_json", "TEXT");
   }
 
   private ensureColumn(

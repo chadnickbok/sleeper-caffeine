@@ -16,12 +16,16 @@ const api: SleeperCaffeineApi = {
     ipcRenderer.invoke(IPC_CHANNELS.refreshActiveLeague),
   generateReport: (kind) =>
     ipcRenderer.invoke(IPC_CHANNELS.generateReport, kind),
+  loadChatHistory: (input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.loadChatHistory, input),
   sendChat: (message) => ipcRenderer.invoke(IPC_CHANNELS.sendChat, message),
   loginCodex: () => ipcRenderer.invoke(IPC_CHANNELS.codexLogin),
   logoutCodex: () => ipcRenderer.invoke(IPC_CHANNELS.codexLogout),
   clearLocalData: () => ipcRenderer.invoke(IPC_CHANNELS.clearLocalData),
   updateAiSettings: (input) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateAiSettings, input),
+  toggleDraftCandidatePin: (playerId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.toggleDraftCandidatePin, playerId),
   openExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.openExternal, url),
   onRuntimeEvent: (listener) => {
     const handler = (

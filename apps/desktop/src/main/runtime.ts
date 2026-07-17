@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -15,10 +16,13 @@ import {
   type RosterView,
   type SleeperUser,
   type ToolWarning,
+  type TradedPick,
 } from "@sleeper-caffeine/core";
 import { LocalMcpBridge } from "@sleeper-caffeine/mcp";
 import { CodexSupervisor } from "@sleeper-caffeine/codex-runtime";
 import {
+  DRAFT_PLAN_OUTPUT_JSON_SCHEMA,
+  DraftPlanOutputSchema,
   MICRO_SUMMARY_OUTPUT_JSON_SCHEMA,
   MicroSummaryOutputSchema,
   ReportPayloadSchema,
@@ -26,6 +30,8 @@ import {
   type AiReport,
   type AiSettings,
   type Bootstrap,
+  type ChatHistoryCursor,
+  type ChatHistoryPage,
   type ChatMessage,
   type Dashboard,
   type DraftView,
@@ -37,6 +43,12 @@ import {
   type SavedLeague,
 } from "@sleeper-caffeine/ipc-contract";
 import { LocalStore } from "./store.js";
+import { buildDraftModel, selectDraft } from "./draft-model.js";
+import {
+  buildDraftPlan,
+  draftPlanInputHash,
+  reconcileDraftPlan,
+} from "./draft-plan.js";
 
 const MICRO_SUMMARY_PROMPT_VERSION = "1";
 
@@ -92,11 +104,31 @@ export class AppRuntime extends EventEmitter {
 
   bootstrap(): Bootstrap {
     const active = this.store.getActiveLeague();
+    const activeDashboard = active
+      ? this.store.getDashboard(active.leagueId)
+      : null;
+    const reports = active ? this.store.getReports(active.leagueId) : [];
+    const chatHistory = active
+      ? this.store.listChatMessages(active.leagueId)
+      : { messages: [], hasMore: false };
     return {
       leagues: this.store.listLeagues(),
-      activeDashboard: active ? this.store.getDashboard(active.leagueId) : null,
-      reports: active ? this.store.getReports(active.leagueId) : [],
-      chatMessages: active ? this.store.listChatMessages(active.leagueId) : [],
+      activeDashboard,
+      reports: reports.map((report) => {
+        if (!report.draftPlan || !activeDashboard) return report;
+        const draftPlan = reconcileDraftPlan(report.draftPlan, activeDashboard);
+        return {
+          ...report,
+          invalidated: ![
+            "current",
+            "advanced_valid",
+            "fallback_active",
+          ].includes(draftPlan.status),
+          draftPlan,
+        };
+      }),
+      chatMessages: chatHistory.messages,
+      chatHasMore: chatHistory.hasMore,
       codex: this.codex?.getStatus() ?? {
         state: "starting",
         binaryPath: null,
@@ -109,6 +141,23 @@ export class AppRuntime extends EventEmitter {
       mcp: this.mcp.getStatus(),
       aiSettings: this.store.getAiSettings(),
     };
+  }
+
+  loadChatHistory(input: {
+    leagueId: string;
+    before: ChatHistoryCursor | null;
+    limit?: number;
+  }): ChatHistoryPage {
+    if (
+      !this.store
+        .listLeagues()
+        .some((league) => league.leagueId === input.leagueId)
+    )
+      throw new Error("League not found");
+    return this.store.listChatMessages(input.leagueId, {
+      before: input.before,
+      ...(input.limit === undefined ? {} : { limit: input.limit }),
+    });
   }
 
   async previewLeague(input: string): Promise<LeaguePreview> {
@@ -193,6 +242,7 @@ export class AppRuntime extends EventEmitter {
   }
 
   async generateReport(kind: ReportKind): Promise<AiReport> {
+    if (kind === "draft_candidates") return this.generateDraftPlanReport();
     const dashboard = this.requireDashboard();
     const aiSettings = this.store.getAiSettings();
     const purpose = `report:${kind}`;
@@ -203,7 +253,6 @@ export class AppRuntime extends EventEmitter {
       effort: aiSettings.effort,
       prompt: reportPrompt(kind, dashboard),
       outputSchema: REPORT_OUTPUT_JSON_SCHEMA,
-      onDelta: (text) => this.send({ type: "report_delta", kind, text }),
     });
     this.store.saveThread(dashboard.league.leagueId, purpose, result.threadId);
 
@@ -263,31 +312,118 @@ export class AppRuntime extends EventEmitter {
     return report;
   }
 
+  private async generateDraftPlanReport(): Promise<AiReport> {
+    await this.refreshActiveLeague();
+    const aiSettings = this.store.getAiSettings();
+    const codex = this.requireCodex();
+    let dashboard = this.requireDashboard();
+    const saved = this.store.getActiveLeague();
+    if (!saved) throw new Error("Add a Sleeper league before draft analysis");
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (!dashboard.draft?.myUpcomingPickNumbers[0])
+        throw new Error("There is no remaining owned pick to analyze");
+      const inputHash = draftPlanInputHash(dashboard);
+      const result = await codex.runTurn({
+        threadId: null,
+        model: aiSettings.model,
+        effort: aiSettings.effort,
+        prompt: draftPlanPrompt(dashboard),
+        outputSchema: DRAFT_PLAN_OUTPUT_JSON_SCHEMA,
+      });
+      this.store.saveThread(
+        dashboard.league.leagueId,
+        `draft-plan:${inputHash}`,
+        result.threadId,
+      );
+
+      let output;
+      try {
+        output = DraftPlanOutputSchema.parse(JSON.parse(result.text));
+      } catch {
+        throw new Error(
+          "Codex returned a draft plan that did not match the structured plan format. Try regenerating it.",
+        );
+      }
+      const generatedAt = new Date().toISOString();
+      const draftPlan = buildDraftPlan({ dashboard, output, generatedAt });
+
+      const latest = await this.buildDashboard(saved);
+      this.store.saveDashboard(latest.dashboard, latest.raw);
+      const boardMoved =
+        latest.dashboard.draft?.boardHash !== dashboard.draft.boardHash;
+      if (boardMoved) {
+        dashboard = latest.dashboard;
+        if (attempt === 0) continue;
+        throw new Error(
+          "The draft moved twice while Caffeine was researching. Refresh and regenerate from the latest board.",
+        );
+      }
+
+      const payload = ReportPayloadSchema.parse(output);
+      let report = this.store.saveReport({
+        leagueId: dashboard.league.leagueId,
+        kind: "draft_candidates",
+        snapshotAt: dashboard.capturedAt,
+        payload,
+        draftPlan,
+      });
+      report = this.store.saveMicroSummary(report, {
+        headline: output.headline.slice(0, 100),
+        summary: output.summary.slice(0, 220),
+        model: aiSettings.model,
+        promptVersion: "draft-plan-2",
+      });
+      this.send({ type: "bootstrap_changed" });
+      return {
+        ...report,
+        draftPlan: reconcileDraftPlan(draftPlan, latest.dashboard),
+      };
+    }
+    throw new Error("Unable to build a plan from the moving draft board");
+  }
+
   async sendChat(message: string): Promise<ChatMessage> {
     const dashboard = this.requireDashboard();
     const aiSettings = this.store.getAiSettings();
     const clean = message.trim();
     if (!clean) throw new Error("Ask the analyst a question first");
-    this.store.saveChatMessage(dashboard.league.leagueId, "user", clean);
-    const result = await this.requireCodex().runTurn({
-      threadId: this.store.getThread(dashboard.league.leagueId, "conversation"),
-      model: aiSettings.model,
-      effort: aiSettings.effort,
-      prompt: `Active Sleeper league: ${dashboard.league.leagueId}. My Sleeper user ID: ${dashboard.league.userId}. My roster ID: ${String(dashboard.league.rosterId)}.\n\n${clean}`,
-      onDelta: (text) => this.send({ type: "chat_delta", text }),
-    });
-    this.store.saveThread(
-      dashboard.league.leagueId,
-      "conversation",
-      result.threadId,
-    );
-    const response = this.store.saveChatMessage(
-      dashboard.league.leagueId,
-      "assistant",
-      result.text.trim(),
-    );
-    this.send({ type: "bootstrap_changed" });
-    return response;
+    const leagueId = dashboard.league.leagueId;
+    const runId = randomUUID();
+    const userMessage = this.store.saveChatMessage(leagueId, "user", clean);
+    this.send({ type: "chat_started", leagueId, runId, userMessage });
+    try {
+      const result = await this.requireCodex().runTurn({
+        threadId: this.store.getThread(leagueId, "conversation"),
+        model: aiSettings.model,
+        effort: aiSettings.effort,
+        prompt: `Active Sleeper league: ${leagueId}. My Sleeper user ID: ${dashboard.league.userId}. My roster ID: ${String(dashboard.league.rosterId)}.\n\n${clean}`,
+        onDelta: (text) =>
+          this.send({ type: "chat_delta", leagueId, runId, text }),
+      });
+      this.store.saveThread(leagueId, "conversation", result.threadId);
+      const response = this.store.saveChatMessage(
+        leagueId,
+        "assistant",
+        result.text.trim(),
+      );
+      this.send({
+        type: "chat_completed",
+        leagueId,
+        runId,
+        assistantMessage: response,
+      });
+      this.send({ type: "bootstrap_changed" });
+      return response;
+    } catch (error) {
+      this.send({
+        type: "chat_failed",
+        leagueId,
+        runId,
+        error: error instanceof Error ? error.message : "Codex turn failed",
+      });
+      throw error;
+    }
   }
 
   updateAiSettings(settings: AiSettings): Bootstrap {
@@ -304,6 +440,35 @@ export class AppRuntime extends EventEmitter {
         );
     }
     this.store.saveAiSettings(settings);
+    this.send({ type: "bootstrap_changed" });
+    return this.bootstrap();
+  }
+
+  toggleDraftCandidatePin(playerId: string): Bootstrap {
+    const saved = this.store.getActiveLeague();
+    if (!saved) throw new Error("Add a Sleeper league before pinning players");
+    const dashboard = this.store.getDashboard(saved.leagueId);
+    if (!dashboard?.draft)
+      throw new Error("Refresh the draft board before pinning players");
+    if (
+      !dashboard.draft.candidates.some(
+        (candidate) => candidate.player.playerId === playerId,
+      )
+    )
+      throw new Error("That player is not in the candidate pool");
+    const pinned = this.store.toggleDraftCandidatePin(saved.leagueId, playerId);
+    const updated: Dashboard = {
+      ...dashboard,
+      draft: {
+        ...dashboard.draft,
+        candidates: dashboard.draft.candidates.map((candidate) =>
+          candidate.player.playerId === playerId
+            ? { ...candidate, pinned }
+            : candidate,
+        ),
+      },
+    };
+    this.store.updateDashboardCache(updated);
     this.send({ type: "bootstrap_changed" });
     return this.bootstrap();
   }
@@ -355,12 +520,19 @@ export class AppRuntime extends EventEmitter {
       avatar: owner?.avatar ?? saved.avatar,
       lastRefreshedAt: capturedAt,
     };
-    const draft = await buildDraftView(
+    const draft = await buildDraftView({
       drafts,
+      preferredDraftId: league.draft_id,
       saved,
-      directory.players,
-      this.api,
-    );
+      players: directory.players,
+      api: this.api,
+      rosters,
+      users,
+      leagueTradedPicks: tradedPicks,
+      rosterPositions: league.roster_positions,
+      leagueSettings: league.settings,
+      pinnedPlayerIds: this.store.getPinnedDraftCandidateIds(saved.leagueId),
+    });
     const matchupWeek =
       league.status === "pre_draft" ? 1 : Math.max(state?.week ?? 1, 1);
     const matchups = await this.api
@@ -488,61 +660,39 @@ function matchupPoints(matchup: Matchup): number | null {
   return numeric(matchup.custom_points) ?? numeric(matchup.points);
 }
 
-async function buildDraftView(
-  drafts: Draft[],
-  saved: SavedLeague,
-  players: ReadonlyMap<string, PlayerSummary>,
-  api: SleeperApi,
-): Promise<DraftView> {
-  const draft = [...drafts].sort(
-    (a, b) =>
-      draftPriority(a.status) - draftPriority(b.status) ||
-      (b.start_time ?? 0) - (a.start_time ?? 0),
-  )[0];
+async function buildDraftView(input: {
+  drafts: Draft[];
+  preferredDraftId: string | null | undefined;
+  saved: SavedLeague;
+  players: ReadonlyMap<string, PlayerSummary>;
+  api: SleeperApi;
+  rosters: Roster[];
+  users: SleeperUser[];
+  leagueTradedPicks: TradedPick[];
+  rosterPositions: string[];
+  leagueSettings: Record<string, unknown>;
+  pinnedPlayerIds: ReadonlySet<string>;
+}): Promise<DraftView> {
+  const draft = selectDraft(input.drafts, input.preferredDraftId);
   if (!draft) return null;
-  let picks: DraftPick[] = [];
-  try {
-    picks = await api.getDraftPicks(draft.draft_id);
-  } catch {
-    // Pre-draft leagues can legitimately have no picks yet.
-  }
-  const teams = numeric(draft.settings["teams"]);
-  const rounds = numeric(draft.settings["rounds"]);
-  const mySlot = draft.draft_order?.[saved.userId] ?? null;
-  const upcoming: number[] = [];
-  if (teams && rounds && mySlot) {
-    const picked = new Set(picks.map((pick) => pick.pick_no));
-    for (let round = 1; round <= rounds; round += 1) {
-      const slot =
-        draft.type === "snake" && round % 2 === 0 ? teams - mySlot + 1 : mySlot;
-      const pickNo = (round - 1) * teams + slot;
-      if (!picked.has(pickNo)) upcoming.push(pickNo);
-    }
-  }
-  return {
-    draftId: draft.draft_id,
-    status: draft.status,
-    type: draft.type,
-    startTime: draft.start_time ?? null,
-    rounds,
-    teams,
-    picks: picks.map((pick) => ({
-      pickNo: pick.pick_no,
-      round: pick.round,
-      draftSlot: pick.draft_slot,
-      rosterId: pick.roster_id ?? null,
-      player: players.has(pick.player_id)
-        ? toPlayer(players.get(pick.player_id) as PlayerSummary)
-        : null,
-    })),
-    myUpcomingPickNumbers: upcoming,
-  };
-}
-
-function draftPriority(status: string): number {
-  if (status === "drafting" || status === "in_progress") return 0;
-  if (status === "pre_draft") return 1;
-  return 2;
+  const [picks, draftTradedPicks] = await Promise.all([
+    input.api.getDraftPicks(draft.draft_id).catch((): DraftPick[] => []),
+    input.api
+      .getDraftTradedPicks(draft.draft_id)
+      .catch(() => input.leagueTradedPicks),
+  ]);
+  return buildDraftModel({
+    draft,
+    picks,
+    tradedPicks: draftTradedPicks,
+    saved: input.saved,
+    rosters: input.rosters,
+    users: input.users,
+    players: input.players,
+    rosterPositions: input.rosterPositions,
+    leagueSettings: input.leagueSettings,
+    pinnedPlayerIds: input.pinnedPlayerIds,
+  });
 }
 
 function toPlayer(
@@ -623,7 +773,121 @@ function reportPrompt(kind: ReportKind, dashboard: Dashboard): string {
     draft_candidates:
       "Build a scoring- and roster-aware shortlist of draft targets. Account for my pick inventory, current roster construction, draft state, tier breaks, upside, and current news.",
   }[kind];
-  return `League ID: ${dashboard.league.leagueId}\nMy user ID: ${dashboard.league.userId}\nMy roster ID: ${String(dashboard.league.rosterId)}\nSnapshot captured: ${dashboard.capturedAt}\n\n${task}\n\nCall the relevant Sleeper MCP tools first. Then use live web search for current player context. Return only JSON matching the supplied schema. Every material current-news claim should have a source entry; Sleeper-derived claims should be labeled sourceType sleeper. A search result is discovery, not a source: cite the actual page you relied on.`;
+  const draftContext =
+    kind === "draft_candidates" && dashboard.draft
+      ? `\n\nDeterministic candidate context:\n${JSON.stringify({
+          status: dashboard.draft.status,
+          sourceStatus: dashboard.draft.sourceStatus,
+          currentPickNo: dashboard.draft.currentPickNo,
+          myUpcomingPickNumbers: dashboard.draft.myUpcomingPickNumbers,
+          candidatePoolMode: dashboard.draft.candidatePoolMode,
+          candidates: dashboard.draft.candidates
+            .filter((candidate, index) => index < 10 || candidate.pinned)
+            .slice(0, 15)
+            .map((candidate) => ({
+              rank: candidate.rank,
+              player: candidate.player.name,
+              position: candidate.player.position,
+              marketRank: candidate.marketRank,
+              score: candidate.score,
+              rationale: candidate.rationale,
+              pinned: candidate.pinned,
+              scoreBreakdown: candidate.scoreBreakdown,
+            })),
+        })}\nTreat this as the candidate set to compare. Research this focused group rather than generating summaries for the entire available-player pool.`
+      : "";
+  return `League ID: ${dashboard.league.leagueId}\nMy user ID: ${dashboard.league.userId}\nMy roster ID: ${String(dashboard.league.rosterId)}\nSnapshot captured: ${dashboard.capturedAt}\n\n${task}${draftContext}\n\nCall the relevant Sleeper MCP tools first. Then use live web search for current player context. Return only JSON matching the supplied schema. Every material current-news claim should have a source entry; Sleeper-derived claims should be labeled sourceType sleeper. A search result is discovery, not a source: cite the actual page you relied on.`;
+}
+
+function draftPlanPrompt(dashboard: Dashboard): string {
+  const draft = dashboard.draft;
+  if (!draft) throw new Error("Refresh the draft before generating a plan");
+  const targetPickNo = draft.myUpcomingPickNumbers[0];
+  if (!targetPickNo) throw new Error("There is no remaining owned pick");
+  const cohort = draftResearchCohort(dashboard);
+  const myDraftedPlayers = draft.picks
+    .filter((pick) => pick.rosterId === dashboard.league.rosterId)
+    .map((pick) => ({
+      playerId: pick.player?.playerId ?? null,
+      player: pick.player?.name ?? "Unknown player",
+      position: pick.player?.position ?? null,
+      pickNo: pick.pickNo,
+    }));
+  return `Build a high-value, evidence-backed draft plan for one immutable Sleeper board snapshot.
+
+League ID: ${dashboard.league.leagueId}
+My user ID: ${dashboard.league.userId}
+My roster ID: ${String(dashboard.league.rosterId)}
+Board hash: ${draft.boardHash}
+Snapshot captured: ${dashboard.capturedAt}
+Target owned pick: ${String(targetPickNo)}
+
+Structured draft context:
+${JSON.stringify({
+  draftId: draft.draftId,
+  status: draft.status,
+  sourceStatus: draft.sourceStatus,
+  basedOnPickCount: draft.picks.length,
+  currentPickNo: draft.currentPickNo,
+  targetPickNo,
+  laterOwnedPicks: draft.myUpcomingPickNumbers.slice(1),
+  scoringLabel: dashboard.scoringLabel,
+  rosterPositions: dashboard.rosterPositions,
+  roster: {
+    starters: dashboard.starters,
+    bench: dashboard.bench,
+    reserve: dashboard.reserve,
+    taxi: dashboard.taxi,
+    draftedThisDraft: myDraftedPlayers,
+  },
+  completedPicks: draft.picks.map((pick) => ({
+    pickNo: pick.pickNo,
+    playerId: pick.player?.playerId ?? null,
+    player: pick.player?.name ?? "Unknown player",
+    position: pick.player?.position ?? null,
+    rosterId: pick.rosterId,
+  })),
+  candidateCohort: cohort.map((candidate) => ({
+    playerId: candidate.player.playerId,
+    player: candidate.player.name,
+    position: candidate.player.position,
+    nflTeam: candidate.player.nflTeam,
+    baselineRank: candidate.rank,
+    sleeperSearchRank: candidate.marketRank,
+    baselineScore: candidate.score,
+    baselineRationale: candidate.rationale,
+    scoreBreakdown: candidate.scoreBreakdown,
+    onResearchList: candidate.pinned,
+  })),
+})}
+
+Call get_draft_snapshot first to verify the board. Use web search to research the most decision-relevant candidates, including current role, NFL draft capital, depth-chart opportunity, injuries, and credible dynasty/rookie consensus where available. Search results are discovery, not sources: cite the actual pages relied on.
+
+Return only JSON matching the supplied schema. Requirements:
+- Use only playerId values from candidateCohort.
+- Rank 5-10 candidates with unique consecutive planRank values starting at 1.
+- primaryPlayerId must be planRank 1 and role primary.
+- fallbackPlayerIds must be ordered and must also appear in recommendations.
+- Explain meaningful promotions or demotions versus baselineRank.
+- Distinguish the plan for pick ${String(targetPickNo)} from strategies for later owned picks.
+- Every material current-news claim needs a source entry.
+- Sleeper-derived claims use sourceType sleeper.
+- Do not claim to submit a pick; this app is read-only.`;
+}
+
+function draftResearchCohort(dashboard: Dashboard) {
+  const candidates = dashboard.draft?.candidates ?? [];
+  const selected = new Map<string, (typeof candidates)[number]>();
+  for (const candidate of candidates.slice(0, 30))
+    selected.set(candidate.player.playerId, candidate);
+  for (const position of ["QB", "RB", "WR", "TE"])
+    for (const candidate of candidates
+      .filter((item) => item.player.position === position)
+      .slice(0, 8))
+      selected.set(candidate.player.playerId, candidate);
+  for (const candidate of candidates)
+    if (candidate.pinned) selected.set(candidate.player.playerId, candidate);
+  return [...selected.values()].slice(0, 48);
 }
 
 function microSummaryPrompt(kind: ReportKind, payload: ReportPayload): string {

@@ -10,8 +10,9 @@ The first release is intentionally safe: it cannot change a lineup, submit a wai
 - Team selection with Sleeper names, avatars, roster IDs, and user IDs.
 - A polished dashboard, full roster room, reserve/taxi handling, headshots, and fallbacks.
 - Manual Sleeper refresh with an immutable local snapshot history.
-- A live draft board with completed picks and upcoming native draft slots.
-- On-demand AI cards for team analysis, trade ideas, and draft candidates.
+- A live draft board with completed picks, traded ownership, upcoming slots, and a deterministic candidate baseline.
+- Board-bound Caffeine Plans with researched rankings, fallbacks, lifecycle states, and one coherent deep briefing.
+- On-demand AI cards for team analysis and trade ideas.
 - A persistent conversational analyst scoped to the active league.
 - Live web research with an explicit distinction between search/discovery and cited sources.
 - Waiver and weekly start/sit surfaces marked for activation when regular-season data is meaningful.
@@ -117,6 +118,7 @@ Tools:
 
 | Tool                    | Purpose                                                        |
 | ----------------------- | -------------------------------------------------------------- |
+| `get_draft_snapshot`    | Live picks, traded ownership, board hash, and remaining picks. |
 | `get_team_snapshot`     | Settings, joined roster, matchup, and traded-pick context.     |
 | `get_available_players` | Players absent from every current league roster.               |
 | `get_matchup_context`   | Both sides of a weekly matchup with joined players.            |
@@ -157,7 +159,7 @@ See [SECURITY.md](./SECURITY.md) for reporting and trust boundaries.
 ## Roadmap
 
 - Regular-season waiver and start/sit intelligence.
-- Faster live-draft polling and pick-aware candidate refresh.
+- Optional short-interval live-draft polling while the room is open.
 - Recommendation outcomes and retrospective scoring.
 - Additional projections/rankings adapters with clear licensing boundaries.
 - Cross-platform release signing and auto-update infrastructure.

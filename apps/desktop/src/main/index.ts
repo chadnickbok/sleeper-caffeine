@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import {
   IPC_CHANNELS,
   AiSettingsSchema,
+  ChatHistoryCursorSchema,
   ReportKindSchema,
   type RuntimeEvent,
 } from "@sleeper-caffeine/ipc-contract";
@@ -71,6 +72,22 @@ function registerIpc(): void {
   ipcMain.handle(IPC_CHANNELS.generateReport, (_event, kind: unknown) =>
     requireRuntime().generateReport(ReportKindSchema.parse(kind)),
   );
+  ipcMain.handle(IPC_CHANNELS.loadChatHistory, (_event, input: unknown) =>
+    requireRuntime().loadChatHistory(
+      z
+        .object({
+          leagueId: z.string().min(1),
+          before: ChatHistoryCursorSchema.nullable(),
+          limit: z.number().int().min(1).max(200).optional(),
+        })
+        .transform(({ leagueId, before, limit }) => ({
+          leagueId,
+          before,
+          ...(limit === undefined ? {} : { limit }),
+        }))
+        .parse(input),
+    ),
+  );
   ipcMain.handle(IPC_CHANNELS.sendChat, (_event, message: unknown) =>
     requireRuntime().sendChat(z.string().min(1).max(10_000).parse(message)),
   );
@@ -89,6 +106,13 @@ function registerIpc(): void {
   );
   ipcMain.handle(IPC_CHANNELS.updateAiSettings, (_event, input: unknown) =>
     requireRuntime().updateAiSettings(AiSettingsSchema.parse(input)),
+  );
+  ipcMain.handle(
+    IPC_CHANNELS.toggleDraftCandidatePin,
+    (_event, playerId: unknown) =>
+      requireRuntime().toggleDraftCandidatePin(
+        z.string().min(1).max(100).parse(playerId),
+      ),
   );
   ipcMain.handle(IPC_CHANNELS.openExternal, async (_event, input: unknown) => {
     const url = z.string().url().parse(input);

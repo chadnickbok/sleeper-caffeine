@@ -1,7 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   AvailablePlayersInputSchema,
+  DraftSnapshotInputSchema,
   getAvailablePlayers,
+  getDraftSnapshot,
   getLeagueHistory,
   getMatchupContext,
   getTeamSnapshot,
@@ -15,6 +17,7 @@ import {
 import { runTool } from "./response.js";
 import {
   AvailablePlayersOutputSchema,
+  DraftSnapshotOutputSchema,
   LeagueHistoryOutputSchema,
   MatchupContextOutputSchema,
   TeamSnapshotOutputSchema,
@@ -35,6 +38,29 @@ export function createServer(dependencies: DomainDependencies): McpServer {
       instructions:
         "Sleeper tools are read-only. Player availability is derived only from absence on league rosters and does not prove waiver clearance. Use separate current sources for news, injuries, projections, and weather. Never claim these tools changed a lineup, waiver, or trade.",
     },
+  );
+
+  server.registerTool(
+    "get_draft_snapshot",
+    {
+      title: "Get live Sleeper draft snapshot",
+      description:
+        "Get the factual live draft board, completed picks, current pick, board hash, and a roster's remaining owned picks. Use this before draft advice.",
+      inputSchema: DraftSnapshotInputSchema,
+      outputSchema: DraftSnapshotOutputSchema,
+      annotations: READ_ONLY_ANNOTATIONS,
+    },
+    (input) =>
+      runTool(
+        () => getDraftSnapshot(dependencies, input),
+        (data) => {
+          const draft = data["draft"] as Record<string, unknown> | null;
+          const currentPick = draft?.["current_pick_no"];
+          return draft
+            ? `Loaded live draft snapshot at pick ${typeof currentPick === "number" ? String(currentPick) : "complete"}.`
+            : "No Sleeper draft is attached to this league.";
+        },
+      ),
   );
 
   server.registerTool(
