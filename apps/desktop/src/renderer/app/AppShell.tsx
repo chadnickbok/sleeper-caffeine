@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   Bootstrap,
   CodexStatus,
@@ -67,10 +67,19 @@ export function AppShell({
   onLogin(): void;
   onDismissError(): void;
 }) {
+  const pageScrollRef = useRef<HTMLDivElement>(null);
+  const activeLeagueId = data.leagues.find((league) => league.isActive)?.leagueId;
+
+  useEffect(() => {
+    if (pageScrollRef.current) {
+      pageScrollRef.current.scrollTop = 0;
+    }
+  }, [activeLeagueId, page]);
+
   return (
     <div className={styles.shell} data-platform={data.platform}>
       <aside className={styles.sidebar}>
-        <div className={styles.trafficSpace} />
+        <div className={styles.trafficSpace} aria-hidden="true" />
         <div className={styles.brand}>
           <img src={sleeperCaffeineMascot} alt="" aria-hidden="true" />
           <div>
@@ -115,6 +124,7 @@ export function AppShell({
       <main className={styles.stage}>
         <TopBar
           dashboard={dashboard}
+          platform={data.platform}
           busy={refreshPending}
           onRefresh={onRefresh}
           onAnalyst={onAnalyst}
@@ -128,7 +138,13 @@ export function AppShell({
             </IconButton>
           </div>
         )}
-        <div className={styles.pageScroll}>{children}</div>
+        <div
+          ref={pageScrollRef}
+          className={styles.pageScroll}
+          data-testid="page-scroll"
+        >
+          {children}
+        </div>
       </main>
     </div>
   );
@@ -218,17 +234,19 @@ function avatarUrl(avatar: string | null): string | null {
 
 function TopBar({
   dashboard,
+  platform,
   busy,
   onRefresh,
   onAnalyst,
 }: {
   dashboard: Dashboard | null;
+  platform: Bootstrap["platform"];
   busy: boolean;
   onRefresh(): void;
   onAnalyst(): void;
 }) {
   return (
-    <header className={styles.topBar}>
+    <header className={styles.topBar} aria-label="Application title bar">
       <div>
         {dashboard && (
           <>
@@ -257,7 +275,7 @@ function TopBar({
         >
           <Icon name="spark" />
           <span>Ask analyst</span>
-          <kbd>⌘K</kbd>
+          <kbd>{platform === "darwin" ? "⌘K" : "Ctrl K"}</kbd>
         </button>
       </div>
     </header>

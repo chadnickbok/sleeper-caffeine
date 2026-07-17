@@ -82,6 +82,8 @@ renderer/
 
 Canonical renderer state uses TanStack Query with explicit IPC mutations. Runtime events update or invalidate that cache; assistant-ui continues to own partial chat streaming. See [the renderer conventions](./apps/desktop/src/renderer/README.md) before adding a UI surface.
 
+Desktop chrome, minimum-window behavior, mutable application paths, and the native macOS/Windows/Linux smoke checklist are documented in [platform validation](./docs/platform-validation.md).
+
 ## Requirements
 
 - Node.js 22 or newer.

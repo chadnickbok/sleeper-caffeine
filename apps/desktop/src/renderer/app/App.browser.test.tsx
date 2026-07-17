@@ -9,6 +9,7 @@ import {
 } from "../test/mock-caffeine-api.js";
 import { AppProviders } from "./AppProviders.js";
 import { queryClient } from "./query-client.js";
+import { bootstrapFixture } from "../test/fixtures.js";
 import "../test/browser-styles.js";
 
 const preview: LeaguePreview = {
@@ -39,8 +40,85 @@ const preview: LeaguePreview = {
   ],
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   queryClient.clear();
+  await page.viewport(1440, 930);
+});
+
+test("keeps the full application usable at the minimum window size", async () => {
+  await page.viewport(1050, 720);
+  const bootstrap = bootstrapFixture("win32");
+  const refreshActiveLeague = vi.fn(() => Promise.resolve(bootstrap));
+  const generateReport = vi.fn(() => Promise.reject(new Error("unused")));
+  Object.defineProperty(window, "sleeperCaffeine", {
+    configurable: true,
+    value: createMockCaffeineApi({
+      bootstrap: () => Promise.resolve(bootstrap),
+      refreshActiveLeague,
+      generateReport,
+    }),
+  });
+
+  await render(
+    <AppProviders>
+      <App />
+    </AppProviders>,
+  );
+
+  await expect
+    .element(page.getByText("The Test Roasters").first())
+    .toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "Ask analyst Ctrl K" }))
+    .toBeVisible();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+    window.innerWidth,
+  );
+
+  await page.getByRole("button", { name: "Refresh Sleeper" }).click();
+  expect(refreshActiveLeague).toHaveBeenCalledOnce();
+  expect(generateReport).not.toHaveBeenCalled();
+
+  await page.getByRole("button", { name: "Roster" }).click();
+  await expect
+    .element(page.getByRole("heading", { name: "Roster room" }))
+    .toBeVisible();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+    window.innerWidth,
+  );
+
+  const pageScroll = page.getByTestId("page-scroll").element();
+  pageScroll.scrollTop = 480;
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect
+    .element(page.getByRole("heading", { name: "Settings" }))
+    .toBeVisible();
+  expect(pageScroll.scrollTop).toBe(0);
+});
+
+test("opens and closes the analyst drawer through visible controls", async () => {
+  const bootstrap = bootstrapFixture();
+  Object.defineProperty(window, "sleeperCaffeine", {
+    configurable: true,
+    value: createMockCaffeineApi({
+      bootstrap: () => Promise.resolve(bootstrap),
+    }),
+  });
+
+  await render(
+    <AppProviders>
+      <App />
+    </AppProviders>,
+  );
+
+  await page.getByRole("button", { name: /Ask analyst/ }).click();
+  await expect
+    .element(page.getByRole("dialog", { name: "Caffeine Analyst" }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Close analyst" }).click();
+  await expect
+    .element(page.getByRole("dialog", { name: "Caffeine Analyst" }))
+    .not.toBeInTheDocument();
 });
 
 test("completes the mocked league onboarding path", async () => {

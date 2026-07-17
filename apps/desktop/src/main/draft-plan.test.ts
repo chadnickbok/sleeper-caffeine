@@ -27,13 +27,15 @@ function player(playerId: string, name: string, position = "WR"): PlayerView {
   };
 }
 
-function dashboard(options: {
-  boardHash?: string;
-  candidates?: string[];
-  targetPick?: PlayerView | null;
-  targetIsMine?: boolean;
-  upcoming?: number[];
-} = {}): Dashboard {
+function dashboard(
+  options: {
+    boardHash?: string;
+    candidates?: string[];
+    targetPick?: PlayerView | null;
+    targetIsMine?: boolean;
+    upcoming?: number[];
+  } = {},
+): Dashboard {
   const candidates = options.candidates ?? ["primary", "fallback", "later"];
   const names = new Map([
     ["primary", "Primary Target"],
@@ -181,7 +183,11 @@ describe("draft plan lifecycle", () => {
   });
 
   it("keeps a plan usable when the board advances without removing its target", () => {
-    const plan = buildDraftPlan({ dashboard: dashboard(), output, generatedAt });
+    const plan = buildDraftPlan({
+      dashboard: dashboard(),
+      output,
+      generatedAt,
+    });
     const reconciled = reconcileDraftPlan(
       plan,
       dashboard({ boardHash: "board-b" }),
@@ -193,7 +199,11 @@ describe("draft plan lifecycle", () => {
   });
 
   it("activates the approved fallback when the primary target is drafted", () => {
-    const plan = buildDraftPlan({ dashboard: dashboard(), output, generatedAt });
+    const plan = buildDraftPlan({
+      dashboard: dashboard(),
+      output,
+      generatedAt,
+    });
     const reconciled = reconcileDraftPlan(
       plan,
       dashboard({ boardHash: "board-b", candidates: ["fallback", "later"] }),
@@ -205,7 +215,11 @@ describe("draft plan lifecycle", () => {
   });
 
   it("completes the plan when the owned target pick is filled", () => {
-    const plan = buildDraftPlan({ dashboard: dashboard(), output, generatedAt });
+    const plan = buildDraftPlan({
+      dashboard: dashboard(),
+      output,
+      generatedAt,
+    });
     const selected = player("primary", "Primary Target");
     const reconciled = reconcileDraftPlan(
       plan,

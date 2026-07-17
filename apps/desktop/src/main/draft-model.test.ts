@@ -7,7 +7,11 @@ import type {
   TradedPick,
 } from "@sleeper-caffeine/core";
 import { describe, expect, it } from "vitest";
-import { buildDraftModel, pickNumberForSlot, selectDraft } from "./draft-model.js";
+import {
+  buildDraftModel,
+  pickNumberForSlot,
+  selectDraft,
+} from "./draft-model.js";
 
 const players = new Map<string, PlayerSummary>([
   ["p1", player("p1", "First Receiver", "WR", 10)],
@@ -99,8 +103,12 @@ describe("draft model", () => {
       leagueSettings: { type: 2 },
       pinnedPlayerIds: new Set(["p2"]),
     });
-    const before = unpinned.candidates.find((candidate) => candidate.player.playerId === "p2");
-    const after = pinned.candidates.find((candidate) => candidate.player.playerId === "p2");
+    const before = unpinned.candidates.find(
+      (candidate) => candidate.player.playerId === "p2",
+    );
+    const after = pinned.candidates.find(
+      (candidate) => candidate.player.playerId === "p2",
+    );
     expect(after?.pinned).toBe(true);
     expect(after?.score).toBe(before?.score);
     expect(after?.rank).toBe(before?.rank);

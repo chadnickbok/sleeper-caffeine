@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReportKind, RuntimeEvent } from "@sleeper-caffeine/ipc-contract";
 import {
   useBootstrapQuery,
@@ -57,6 +57,17 @@ export function App() {
       );
   }, []);
   useRuntimeEvents(handleChatEvent);
+
+  useEffect(() => {
+    const openAnalyst = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "k" || (!event.metaKey && !event.ctrlKey))
+        return;
+      event.preventDefault();
+      if (bootstrap.data?.activeDashboard) setAnalystOpen(true);
+    };
+    window.addEventListener("keydown", openAnalyst);
+    return () => window.removeEventListener("keydown", openAnalyst);
+  }, [bootstrap.data?.activeDashboard]);
 
   const data = bootstrap.data ?? null;
   const error =

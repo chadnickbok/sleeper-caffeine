@@ -50,3 +50,17 @@
   font: var(--font-size-metadata) var(--font-family-mono);
   text-align: center;
 }
+
+@media (max-width: 75rem) {
+  .page {
+    width: calc(100% - 2rem);
+  }
+}
+
+@media (max-width: 54rem) {
+  .heading {
+    min-height: 0;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

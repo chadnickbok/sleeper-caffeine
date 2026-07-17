@@ -25,6 +25,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm --filter @sleeper-caffeine/desktop test:browser
       - run: pnpm build
       - run: pnpm --filter @sleeper-caffeine/desktop storybook:build
 

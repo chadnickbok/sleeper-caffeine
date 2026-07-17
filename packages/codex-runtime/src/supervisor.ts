@@ -1,7 +1,11 @@
 import { mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import type { CodexModel, CodexStatus } from "@sleeper-caffeine/ipc-contract";
-import { findCodexBinary, readCodexVersion } from "./discovery.js";
+import {
+  codexRequiresShell,
+  findCodexBinary,
+  readCodexVersion,
+} from "./discovery.js";
 import { JsonlRpcClient } from "./jsonl-client.js";
 
 type JsonObject = Record<string, unknown>;
@@ -100,6 +104,7 @@ export class CodexSupervisor {
       cwd: this.options.cwd,
       env: environment,
       stdio: ["pipe", "pipe", "pipe"],
+      shell: codexRequiresShell(binaryPath),
     });
     const client = new JsonlRpcClient(child);
     this.client = client;

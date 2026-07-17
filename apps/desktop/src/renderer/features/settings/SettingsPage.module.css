@@ -1,6 +1,5 @@
 .page {
   max-width: 940px;
-  margin-left: 54px;
 }
 .group {
   margin-top: var(--space-3);
@@ -70,9 +69,6 @@
 }
 
 @media (max-width: 900px) {
-  .page {
-    margin-left: 0;
-  }
   .row,
   .dangerZone {
     align-items: flex-start;

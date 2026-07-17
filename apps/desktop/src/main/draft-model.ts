@@ -64,7 +64,9 @@ export function buildDraftModel(input: {
     status === "live" && totalPicks
       ? firstMissingPick(pickByNumber, totalPicks)
       : null;
-  const rosterById = new Map(rosters.map((roster) => [roster.roster_id, roster]));
+  const rosterById = new Map(
+    rosters.map((roster) => [roster.roster_id, roster]),
+  );
   const userById = new Map(users.map((user) => [user.user_id, user]));
   const rosterIdBySlot = slotRosterMap(draft, rosters, teams);
   const teamName = (rosterId: number | null): string | null => {
@@ -74,9 +76,7 @@ export function buildDraftModel(input: {
     const metadataName = user?.metadata?.["team_name"];
     return typeof metadataName === "string" && metadataName.trim()
       ? metadataName.trim()
-      : (user?.display_name ??
-          user?.username ??
-          `Roster ${String(rosterId)}`);
+      : (user?.display_name ?? user?.username ?? `Roster ${String(rosterId)}`);
   };
 
   const draftTeams = teams
@@ -84,7 +84,9 @@ export function buildDraftModel(input: {
         const draftSlot = index + 1;
         const rosterId = rosterIdBySlot.get(draftSlot) ?? null;
         const roster = rosterId === null ? undefined : rosterById.get(rosterId);
-        const user = roster?.owner_id ? userById.get(roster.owner_id) : undefined;
+        const user = roster?.owner_id
+          ? userById.get(roster.owner_id)
+          : undefined;
         return {
           draftSlot,
           rosterId,
@@ -97,42 +99,44 @@ export function buildDraftModel(input: {
 
   const board =
     supported && teams && rounds
-      ? Array.from({ length: rounds }, (_, roundIndex) => roundIndex + 1).flatMap(
-          (round) =>
-            Array.from({ length: teams }, (_, slotIndex) => {
-              const draftSlot = slotIndex + 1;
-              const pickNo = pickNumberForSlot(
-                draft.type,
-                round,
-                draftSlot,
-                teams,
-                integerSetting(draft.settings["reversal_round"]),
-              );
-              const pick = pickByNumber.get(pickNo);
-              const originalRosterId = rosterIdBySlot.get(draftSlot) ?? null;
-              const tradedOwner = currentOwnerForPick(
-                draft.season,
-                round,
-                originalRosterId,
-                input.tradedPicks,
-              );
-              const ownerRosterId = pick?.roster_id ?? tradedOwner;
-              return {
-                pickNo,
-                round,
-                draftSlot,
-                originalRosterId,
-                ownerRosterId,
-                ownerTeamName: teamName(ownerRosterId),
-                isMine: ownerRosterId === saved.rosterId,
-                isTraded:
-                  ownerRosterId !== null &&
-                  originalRosterId !== null &&
-                  ownerRosterId !== originalRosterId,
-                isOnClock: pickNo === currentPickNo,
-                pick: pick ? pickView(pick, players) : null,
-              };
-            }),
+      ? Array.from(
+          { length: rounds },
+          (_, roundIndex) => roundIndex + 1,
+        ).flatMap((round) =>
+          Array.from({ length: teams }, (_, slotIndex) => {
+            const draftSlot = slotIndex + 1;
+            const pickNo = pickNumberForSlot(
+              draft.type,
+              round,
+              draftSlot,
+              teams,
+              integerSetting(draft.settings["reversal_round"]),
+            );
+            const pick = pickByNumber.get(pickNo);
+            const originalRosterId = rosterIdBySlot.get(draftSlot) ?? null;
+            const tradedOwner = currentOwnerForPick(
+              draft.season,
+              round,
+              originalRosterId,
+              input.tradedPicks,
+            );
+            const ownerRosterId = pick?.roster_id ?? tradedOwner;
+            return {
+              pickNo,
+              round,
+              draftSlot,
+              originalRosterId,
+              ownerRosterId,
+              ownerTeamName: teamName(ownerRosterId),
+              isMine: ownerRosterId === saved.rosterId,
+              isTraded:
+                ownerRosterId !== null &&
+                originalRosterId !== null &&
+                ownerRosterId !== originalRosterId,
+              isOnClock: pickNo === currentPickNo,
+              pick: pick ? pickView(pick, players) : null,
+            };
+          }),
         )
       : [];
   const myUpcomingPickNumbers = board
@@ -250,7 +254,9 @@ function slotRosterMap(
   teams: number | null,
 ): Map<number, number> {
   const result = new Map<number, number>();
-  for (const [slot, rosterId] of Object.entries(draft.slot_to_roster_id ?? {})) {
+  for (const [slot, rosterId] of Object.entries(
+    draft.slot_to_roster_id ?? {},
+  )) {
     const parsedSlot = Number(slot);
     const parsedRoster = Number(rosterId);
     if (Number.isInteger(parsedSlot) && Number.isInteger(parsedRoster))
@@ -503,7 +509,8 @@ function inferCandidatePoolMode(input: {
     completedPlayerYears.length >= 2 &&
     completedPlayerYears.every((years) => years === 0);
   const dynasty = Number(input.leagueSettings["type"]) === 2;
-  const shortDynastyDraft = dynasty && input.rounds !== null && input.rounds <= 6;
+  const shortDynastyDraft =
+    dynasty && input.rounds !== null && input.rounds <= 6;
   return completedPicksAreRookies || shortDynastyDraft ? "rookies" : "all";
 }
 

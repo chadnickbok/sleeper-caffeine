@@ -1,7 +1,6 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
 import {
   PlayerCache,
   PlayerDirectory,
@@ -44,6 +43,7 @@ import {
   type SavedLeague,
 } from "@sleeper-caffeine/ipc-contract";
 import { LocalStore } from "./store.js";
+import { resolveAppPaths } from "./app-paths.js";
 import { buildDraftModel, selectDraft } from "./draft-model.js";
 import {
   buildDraftPlan,
@@ -63,12 +63,13 @@ export class AppRuntime extends EventEmitter {
 
   constructor(private readonly userDataDir: string) {
     super();
-    this.cacheDir = join(userDataDir, "cache", "sleeper");
+    const paths = resolveAppPaths(userDataDir);
+    this.cacheDir = paths.cacheDir;
     this.api = new SleeperApi(new SleeperClient());
     this.players = new PlayerDirectory(
       new PlayerCache(this.api, { cacheDir: this.cacheDir }),
     );
-    this.store = new LocalStore(join(userDataDir, "sleeper-caffeine.sqlite"));
+    this.store = new LocalStore(paths.databasePath);
     this.mcp = new LocalMcpBridge({
       dependencies: { api: this.api, players: this.players },
       port: 9312,
@@ -76,14 +77,15 @@ export class AppRuntime extends EventEmitter {
   }
 
   async start(): Promise<void> {
-    await mkdir(join(this.userDataDir, "analyst-workspace"), {
+    const paths = resolveAppPaths(this.userDataDir);
+    await mkdir(paths.analystWorkspace, {
       recursive: true,
     });
     this.mcp.subscribe((status) => this.send({ type: "mcp_status", status }));
     await this.mcp.start();
     this.codex = new CodexSupervisor({
-      codexHome: join(this.userDataDir, "codex-home"),
-      cwd: join(this.userDataDir, "analyst-workspace"),
+      codexHome: paths.codexHome,
+      cwd: paths.analystWorkspace,
       mcpUrl: this.mcp.getStatus().endpoint,
     });
     this.codex.subscribe((status) =>

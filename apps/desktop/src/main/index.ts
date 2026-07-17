@@ -5,10 +5,12 @@ import {
   IPC_CHANNELS,
   AiSettingsSchema,
   ChatHistoryCursorSchema,
+  DesktopPlatformSchema,
   ReportKindSchema,
   type RuntimeEvent,
 } from "@sleeper-caffeine/ipc-contract";
 import { AppRuntime } from "./runtime.js";
+import { createWindowOptions } from "./window-config.js";
 
 let mainWindow: BrowserWindow | null = null;
 let runtime: AppRuntime | null = null;
@@ -19,16 +21,9 @@ function requireRuntime(): AppRuntime {
 }
 
 function createWindow(): BrowserWindow {
+  const platform = DesktopPlatformSchema.parse(process.platform);
   const window = new BrowserWindow({
-    width: 1440,
-    height: 930,
-    minWidth: 1050,
-    minHeight: 720,
-    ...(process.platform === "darwin"
-      ? { titleBarStyle: "hiddenInset" as const }
-      : {}),
-    backgroundColor: "#0c100e",
-    show: false,
+    ...createWindowOptions(platform),
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
       contextIsolation: true,

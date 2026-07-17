@@ -33,10 +33,10 @@ test("filters, expands, and pins candidates without an AI turn", async () => {
   );
 
   const receiverRow = page.getByRole("button", {
-    name: /Receiver Prospect.*Public search order/,
+    name: /Receiver Prospect.*Baseline #1/,
   });
   const runningBackRow = page.getByRole("button", {
-    name: /Running Back Prospect.*Public search order/,
+    name: /Running Back Prospect.*Baseline #2/,
   });
   await expect.element(receiverRow).toBeVisible();
   await expect.element(runningBackRow).toBeVisible();

@@ -482,12 +482,12 @@ Exit criteria:
 #### Milestone 5 — cross-platform hardening
 
 - [x] Add a typed platform value to the preload contract.
-- [ ] Isolate draggable window regions and title-bar spacing in the app shell.
+- [x] Isolate draggable window regions and title-bar spacing in the app shell.
 - [x] Define platform-aware title-bar and traffic-light/window-control behavior.
 - [ ] Verify native select, scrolling, font rendering, focus, and keyboard behavior on macOS, Windows, and Linux.
 - [x] Define and enforce minimum supported window dimensions.
 - [x] Add unsigned Windows and Linux package builds to CI or a documented release validation workflow.
-- [ ] Run browser component tests at representative compact and full desktop viewports.
+- [x] Run browser component tests at representative compact and full desktop viewports.
 
 Exit criteria:
 

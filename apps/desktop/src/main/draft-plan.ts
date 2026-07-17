@@ -67,7 +67,9 @@ export function buildDraftPlan(input: {
       (recommendation, index) => recommendation.planRank !== index + 1,
     )
   )
-    throw new Error("The draft plan ranks must be consecutive and start at one");
+    throw new Error(
+      "The draft plan ranks must be consecutive and start at one",
+    );
   if (!ids.has(input.output.primaryPlayerId))
     throw new Error("The primary draft target is not in the ranked plan");
   if (
@@ -169,14 +171,18 @@ export function reconcileDraftPlan(
   const ordered = [plan.primaryPlayerId, ...plan.fallbackPlayerIds];
   const active = ordered.find((playerId) => available.has(playerId)) ?? null;
   if (!active)
-    return supersede(plan, "The primary target and every approved fallback are gone");
+    return supersede(
+      plan,
+      "The primary target and every approved fallback are gone",
+    );
 
   const researchStale = now > Date.parse(plan.researchFreshThrough);
   if (researchStale)
     return {
       ...plan,
       status: "research_stale",
-      statusReason: "The board is usable, but its player research is over 12 hours old",
+      statusReason:
+        "The board is usable, but its player research is over 12 hours old",
       activeRecommendationPlayerId: active,
       selectedPlayerId: null,
     };
@@ -184,7 +190,8 @@ export function reconcileDraftPlan(
     return {
       ...plan,
       status: "fallback_active",
-      statusReason: "The primary target is gone; the next approved fallback is active",
+      statusReason:
+        "The primary target is gone; the next approved fallback is active",
       activeRecommendationPlayerId: active,
       selectedPlayerId: null,
     };
@@ -192,7 +199,8 @@ export function reconcileDraftPlan(
     return {
       ...plan,
       status: "advanced_valid",
-      statusReason: "The board advanced, but the primary recommendation remains available",
+      statusReason:
+        "The board advanced, but the primary recommendation remains available",
       activeRecommendationPlayerId: active,
       selectedPlayerId: null,
     };
@@ -216,6 +224,7 @@ function supersede(plan: DraftPlan, statusReason: string): DraftPlan {
 }
 
 function requireDraft(dashboard: Dashboard) {
-  if (!dashboard.draft) throw new Error("Refresh the draft before building a plan");
+  if (!dashboard.draft)
+    throw new Error("Refresh the draft before building a plan");
   return dashboard.draft;
 }

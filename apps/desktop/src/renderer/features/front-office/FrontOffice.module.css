@@ -450,8 +450,31 @@
   text-transform: uppercase;
 }
 @media (max-width: 68rem) {
+  .page {
+    width: calc(100% - 2rem);
+  }
+
+  .hero {
+    flex-direction: column;
+  }
+
   .matchup {
-    min-width: 18rem;
+    width: auto;
+    min-width: 0;
+    align-self: stretch;
+    margin: 0 1.5rem 1.5rem;
+  }
+
+  .reportGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lowerGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .matchup {
+    min-width: 0;
   }
   .heroCopy {
     padding-inline: 1.5rem;
@@ -461,5 +484,16 @@
     min-width: 5rem;
     padding-right: 0.75rem;
     margin-right: 0.75rem;
+  }
+}
+
+@media (max-width: 54rem) {
+  .reportGrid,
+  .rosterGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .playerRow:nth-child(2) {
+    border-top: 1px solid rgb(255 255 255 / 6%);
   }
 }

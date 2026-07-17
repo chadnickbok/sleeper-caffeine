@@ -415,3 +415,31 @@
   color: var(--color-text-tertiary);
   font: var(--font-size-metadata) var(--font-family-mono);
 }
+
+@media (max-width: 68rem) {
+  .cardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .generating {
+    gap: var(--space-6);
+    padding: var(--space-8);
+  }
+}
+
+@media (max-width: 54rem) {
+  .lead,
+  .actions,
+  .sources {
+    padding: var(--space-4);
+  }
+
+  .generating {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sources summary em {
+    display: none;
+  }
+}

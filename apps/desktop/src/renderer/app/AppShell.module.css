@@ -17,6 +17,19 @@
   border-right: 1px solid var(--color-border-subtle);
   background: rgb(7 19 31 / 94%);
   backdrop-filter: blur(20px);
+}
+
+.shell button,
+.shell input,
+.shell select,
+.shell textarea,
+.shell summary,
+.shell a {
+  -webkit-app-region: no-drag;
+}
+
+.shell[data-platform="darwin"] .sidebar,
+.shell[data-platform="darwin"] .topBar {
   -webkit-app-region: drag;
 }
 
@@ -288,6 +301,7 @@
 }
 
 .stage {
+  position: relative;
   min-width: 0;
   min-height: 0;
   height: 100%;
@@ -306,7 +320,6 @@
   border-bottom: 1px solid var(--color-border-subtle);
   background: rgb(12 16 14 / 82%);
   backdrop-filter: blur(18px);
-  -webkit-app-region: drag;
 }
 
 .topBar > div {
@@ -328,6 +341,13 @@
 .lastSync {
   color: var(--color-text-secondary);
   font-size: var(--font-size-metadata);
+}
+
+.crumb {
+  overflow: hidden;
+  max-width: min(32vw, 26rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lastSync {
@@ -392,7 +412,7 @@
   position: absolute;
   z-index: var(--layer-notification);
   top: 4.4375rem;
-  left: calc(var(--size-sidebar) + 50%);
+  left: 50%;
   max-width: 40.625rem;
   display: flex;
   align-items: center;
@@ -405,6 +425,20 @@
   box-shadow: var(--shadow-overlay);
   font-size: var(--font-size-body-sm);
   transform: translateX(-50%);
+}
+
+@media (max-width: 75rem) {
+  .shell {
+    --size-sidebar: 13.5rem;
+  }
+
+  .topBar {
+    padding-inline: var(--space-4);
+  }
+
+  .lastSync {
+    display: none;
+  }
 }
 
 .errorBanner > span {

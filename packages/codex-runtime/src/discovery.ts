@@ -39,10 +39,18 @@ export async function findCodexBinary(): Promise<string | null> {
   return null;
 }
 
+export function codexRequiresShell(
+  binaryPath: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  return platform === "win32" && /\.(?:cmd|bat)$/i.test(binaryPath);
+}
+
 export async function readCodexVersion(binaryPath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(binaryPath, ["--version"], {
       stdio: ["ignore", "pipe", "pipe"],
+      shell: codexRequiresShell(binaryPath),
     });
     let stdout = "";
     let stderr = "";

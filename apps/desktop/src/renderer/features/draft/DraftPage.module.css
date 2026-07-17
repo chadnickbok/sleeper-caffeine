@@ -865,7 +865,7 @@
   color: #788b99;
   font-size: 10px;
 }
-.root :global((max-width: 1120px)) {
+@media (max-width: 70rem) {
   .root :global(.draft-intelligence-body) {
     grid-template-columns: 1fr 1.25fr;
   }
@@ -894,5 +894,29 @@
         190px,
         1.2fr
       );
+  }
+}
+
+@media (max-width: 60rem) {
+  .root :global(.draft-intelligence-body) {
+    grid-template-columns: 1fr;
+  }
+
+  .root :global(.draft-pick-action) {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .root :global(.candidate-table-head),
+  .root :global(.candidate-row-main) {
+    grid-template-columns: 2.8125rem minmax(11rem, 1fr) 5.625rem minmax(
+        10rem,
+        1fr
+      );
+  }
+
+  .root :global(.candidate-table-head > :nth-child(3)),
+  .root :global(.candidate-row-main > :nth-child(3)) {
+    display: none;
   }
 }
